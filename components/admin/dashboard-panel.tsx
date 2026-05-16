@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { RichTextEditor } from "@/components/admin/rich-text-editor";
 import { CloudinaryUpload } from "@/components/admin/cloudinary-upload";
 
-type Tab = "members" | "donations" | "news" | "campaigns";
+type Tab = "members" | "donations" | "news" | "campaigns" | "gallery";
 
 type MemberItem = {
   id: number;
@@ -70,8 +70,18 @@ type DonationItem = {
   createdAt: string;
 };
 
+type GalleryItem = {
+  id: number;
+  imageUrl: string;
+  caption: string | null;
+  captionHindi: string | null;
+  category: string;
+  createdAt: string;
+};
+
 const campaignCategories = ["education", "health", "environment", "women", "rural", "disaster", "general"];
 const newsCategories = ["general", "health", "education", "environment", "women", "rural"];
+const galleryCategories = ["events", "education", "health", "environment", "women", "rural", "donation", "general"];
 
 const membershipTypeLabel: Record<MemberItem["membershipType"], string> = {
   general: "General",
@@ -117,12 +127,14 @@ export function DashboardPanel({
   initialCampaigns,
   initialMembers,
   initialDonations,
+  initialGallery,
 }: {
   email: string;
   initialNews: NewsItem[];
   initialCampaigns: CampaignItem[];
   initialMembers: MemberItem[];
   initialDonations: DonationItem[];
+  initialGallery: GalleryItem[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("members");
@@ -132,7 +144,9 @@ export function DashboardPanel({
   const [news, setNews] = useState<NewsItem[]>(initialNews);
   const [campaigns, setCampaigns] = useState<CampaignItem[]>(initialCampaigns);
   const [donations, setDonations] = useState<DonationItem[]>(initialDonations);
+  const [gallery, setGallery] = useState<GalleryItem[]>(initialGallery);
   const [editingCampaignId, setEditingCampaignId] = useState<number | null>(null);
+  const [editingGalleryId, setEditingGalleryId] = useState<number | null>(null);
   const [expandedDonationId, setExpandedDonationId] = useState<number | null>(null);
 
   const [newsForm, setNewsForm] = useState({
@@ -155,6 +169,13 @@ export function DashboardPanel({
     category: "general",
     imageUrl: "",
     isActive: true,
+  });
+
+  const [galleryForm, setGalleryForm] = useState({
+    imageUrl: "",
+    caption: "",
+    captionHindi: "",
+    category: "events",
   });
 
   const pendingMembers = useMemo(
@@ -180,23 +201,26 @@ export function DashboardPanel({
 
   const refreshAll = async () => {
     setError("");
-    const [membersRes, newsRes, campaignsRes, donationsRes] = await Promise.all([
+    const [membersRes, newsRes, campaignsRes, donationsRes, galleryRes] = await Promise.all([
       fetch("/api/members", { credentials: "include" }),
       fetch("/api/news", { credentials: "include" }),
       fetch("/api/campaigns", { credentials: "include" }),
       fetch("/api/donations", { credentials: "include" }),
+      fetch("/api/gallery", { credentials: "include" }),
     ]);
-    if (!membersRes.ok || !newsRes.ok || !campaignsRes.ok || !donationsRes.ok) {
+    if (!membersRes.ok || !newsRes.ok || !campaignsRes.ok || !donationsRes.ok || !galleryRes.ok) {
       throw new Error("Failed to refresh dashboard data");
     }
     const membersData = (await membersRes.json()) as MemberItem[];
     const newsData = (await newsRes.json()) as NewsItem[];
     const campaignsData = (await campaignsRes.json()) as CampaignItem[];
     const donationsData = (await donationsRes.json()) as DonationItem[];
+    const galleryData = (await galleryRes.json()) as GalleryItem[];
     setMembers(membersData);
     setNews(newsData);
     setCampaigns(campaignsData);
     setDonations(donationsData);
+    setGallery(galleryData);
   };
 
   const refreshQueue = async () => {
@@ -374,6 +398,96 @@ export function DashboardPanel({
     }
   };
 
+  const resetGalleryForm = () => {
+    setGalleryForm({
+      imageUrl: "",
+      caption: "",
+      captionHindi: "",
+      category: "events",
+    });
+    setEditingGalleryId(null);
+  };
+
+  const submitGallery = async () => {
+    if (!galleryForm.imageUrl.trim()) {
+      setError("Gallery image is required.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/gallery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(galleryForm),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error || "Failed to add gallery image");
+      }
+
+      resetGalleryForm();
+      await refreshAll();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Failed to add gallery image");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateGallery = async () => {
+    if (!editingGalleryId) return;
+    if (!galleryForm.imageUrl.trim()) {
+      setError("Gallery image is required.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/gallery/${editingGalleryId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(galleryForm),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error || "Failed to update gallery image");
+      }
+
+      resetGalleryForm();
+      await refreshAll();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Failed to update gallery image");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeGallery = async (id: number) => {
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/gallery/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok && response.status !== 204) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error || "Failed to delete gallery image");
+      }
+
+      await refreshAll();
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : "Failed to delete gallery image");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-3xl border border-rose-200 bg-gradient-to-r from-rose-700 via-rose-700 to-orange-700 p-6 text-white shadow-xl">
@@ -446,6 +560,13 @@ export function DashboardPanel({
           onClick={() => setTab("campaigns")}
         >
           Campaigns
+        </button>
+        <button
+          type="button"
+          className={`rounded-md px-4 py-2 text-sm font-semibold ${tab === "gallery" ? "bg-rose-700 text-white" : "bg-zinc-100 text-zinc-700"}`}
+          onClick={() => setTab("gallery")}
+        >
+          Gallery
         </button>
       </div>
 
@@ -851,6 +972,117 @@ export function DashboardPanel({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {tab === "gallery" && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-zinc-900">
+                  {editingGalleryId ? "Edit Gallery Event" : "Add Gallery Event"}
+                </h2>
+                <p className="mt-1 text-sm text-zinc-500">
+                  These images appear on the public gallery page and the home page gallery highlights.
+                </p>
+              </div>
+              {editingGalleryId && (
+                <button
+                  type="button"
+                  onClick={resetGalleryForm}
+                  className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+                >
+                  Cancel Edit
+                </button>
+              )}
+            </div>
+
+            <div className="mt-4">
+              <CloudinaryUpload value={galleryForm.imageUrl} onChange={(imageUrl) => setGalleryForm((p) => ({ ...p, imageUrl }))} label="Gallery Image" />
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">Caption (English)</label>
+                <input value={galleryForm.caption} onChange={(e) => setGalleryForm((p) => ({ ...p, caption: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">Caption (Hindi)</label>
+                <input value={galleryForm.captionHindi} onChange={(e) => setGalleryForm((p) => ({ ...p, captionHindi: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">Category</label>
+                <select value={galleryForm.category} onChange={(e) => setGalleryForm((p) => ({ ...p, category: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm">
+                  {galleryCategories.map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={editingGalleryId ? updateGallery : submitGallery}
+              disabled={busy}
+              className="mt-4 rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-60"
+            >
+              {busy ? "Saving..." : editingGalleryId ? "Save Gallery Event" : "Add Gallery Event"}
+            </button>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {gallery.map((item) => (
+              <div key={item.id} className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+                <div className="grid gap-0 sm:grid-cols-[180px_1fr]">
+                  <div className="h-44 bg-zinc-100 sm:h-full">
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.caption || "Gallery image"} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-sm text-zinc-500">No image</div>
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">{item.category}</span>
+                      <span className="text-xs text-zinc-500">{new Date(item.createdAt).toLocaleDateString("en-IN")}</span>
+                    </div>
+                    <h3 className="text-base font-semibold text-zinc-900">{item.caption || "Untitled gallery event"}</h3>
+                    {item.captionHindi && <p className="mt-1 text-sm text-zinc-500">{item.captionHindi}</p>}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingGalleryId(item.id);
+                          setGalleryForm({
+                            imageUrl: item.imageUrl,
+                            caption: item.caption || "",
+                            captionHindi: item.captionHindi || "",
+                            category: item.category,
+                          });
+                        }}
+                        className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeGallery(item.id)}
+                        className="rounded-md border border-red-300 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {gallery.length === 0 && (
+              <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-500 md:col-span-2">
+                No gallery events found. Add the first event image above.
+              </div>
+            )}
           </div>
         </div>
       )}

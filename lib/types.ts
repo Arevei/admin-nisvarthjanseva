@@ -74,3 +74,12 @@ export interface DonationDoc {
   };
   createdAt: Date;
 }
+
+export interface GalleryDoc {
+  id: number;
+  imageUrl: string;
+  caption: string | null;
+  captionHindi: string | null;
+  category: string;
+  createdAt: Date;
+}

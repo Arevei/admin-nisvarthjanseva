@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { DashboardPanel } from "@/components/admin/dashboard-panel";
 import { getDb } from "@/lib/db";
-import type { CampaignDoc, DonationDoc, MemberDoc, NewsDoc } from "@/lib/types";
+import type { CampaignDoc, DonationDoc, GalleryDoc, MemberDoc, NewsDoc } from "@/lib/types";
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -15,6 +15,7 @@ export default async function DashboardPage() {
   const campaignRows = await db.collection<CampaignDoc>("campaigns").find({}).sort({ createdAt: -1 }).toArray();
   const memberRows = await db.collection<MemberDoc>("members").find({}).sort({ joinedAt: -1 }).toArray();
   const donationRows = await db.collection<DonationDoc>("donations").find({}).sort({ createdAt: -1 }).toArray();
+  const galleryRows = await db.collection<GalleryDoc>("gallery").find({}).sort({ createdAt: -1 }).toArray();
   const campaignTitleById = new Map(campaignRows.map((campaign) => [campaign.id, campaign.title]));
 
   const initialNews = newsRows.map((item) => ({
@@ -80,6 +81,15 @@ export default async function DashboardPage() {
     createdAt: item.createdAt.toISOString(),
   }));
 
+  const initialGallery = galleryRows.map((item) => ({
+    id: item.id,
+    imageUrl: item.imageUrl,
+    caption: item.caption,
+    captionHindi: item.captionHindi,
+    category: item.category,
+    createdAt: item.createdAt.toISOString(),
+  }));
+
   return (
     <main className="min-h-screen bg-zinc-100 px-4 py-8">
       <div className="mx-auto max-w-6xl">
@@ -89,6 +99,7 @@ export default async function DashboardPage() {
           initialCampaigns={initialCampaigns}
           initialMembers={initialMembers}
           initialDonations={initialDonations}
+          initialGallery={initialGallery}
         />
       </div>
     </main>
