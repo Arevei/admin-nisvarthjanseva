@@ -50,3 +50,27 @@ export interface MemberDoc {
   passwordHash?: string;
   joinedAt: Date;
 }
+
+export interface DonationDoc {
+  id: number;
+  amount: number;
+  donorName: string;
+  donorEmail: string;
+  donorPhone?: string | null;
+  campaignId?: number | null;
+  purpose: string;
+  receiptNumber: string;
+  status?: string;
+  payment?: {
+    mode?: "manual" | "razorpay";
+    status?: string;
+    amount?: number;
+    currency?: string;
+    orderId?: string;
+    paymentId?: string;
+    receipt?: string;
+    paidAt?: Date;
+    createdAt?: Date;
+  };
+  createdAt: Date;
+}

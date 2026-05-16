@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { RichTextEditor } from "@/components/admin/rich-text-editor";
 import { CloudinaryUpload } from "@/components/admin/cloudinary-upload";
 
-type Tab = "members" | "news" | "campaigns";
+type Tab = "members" | "donations" | "news" | "campaigns";
 
 type MemberItem = {
   id: number;
@@ -50,6 +50,26 @@ type CampaignItem = {
   createdAt: string;
 };
 
+type DonationItem = {
+  id: number;
+  amount: number;
+  donorName: string;
+  donorEmail: string;
+  donorPhone: string | null;
+  campaignId: number | null;
+  campaignTitle: string | null;
+  purpose: string;
+  receiptNumber: string;
+  status: string;
+  paymentMode: string;
+  paymentStatus: string;
+  orderId: string | null;
+  paymentId: string | null;
+  razorpayReceipt: string | null;
+  paidAt: string | null;
+  createdAt: string;
+};
+
 const campaignCategories = ["education", "health", "environment", "women", "rural", "disaster", "general"];
 const newsCategories = ["general", "health", "education", "environment", "women", "rural"];
 
@@ -67,6 +87,8 @@ const stripHtml = (html: string) =>
     .trim();
 
 function statusClass(status: string) {
+  if (status === "paid") return "bg-emerald-100 text-emerald-800";
+  if (status === "created") return "bg-amber-100 text-amber-800";
   if (status === "active") return "bg-emerald-100 text-emerald-800";
   if (status === "payment_pending") return "bg-amber-100 text-amber-800";
   if (status === "pending") return "bg-blue-100 text-blue-800";
@@ -75,16 +97,32 @@ function statusClass(status: string) {
   return "bg-zinc-100 text-zinc-700";
 }
 
+function money(amount: number) {
+  return `Rs ${amount.toLocaleString("en-IN")}`;
+}
+
+function shortDate(date: string) {
+  return new Date(date).toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function DashboardPanel({
   email,
   initialNews,
   initialCampaigns,
   initialMembers,
+  initialDonations,
 }: {
   email: string;
   initialNews: NewsItem[];
   initialCampaigns: CampaignItem[];
   initialMembers: MemberItem[];
+  initialDonations: DonationItem[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("members");
@@ -93,7 +131,9 @@ export function DashboardPanel({
   const [members, setMembers] = useState<MemberItem[]>(initialMembers);
   const [news, setNews] = useState<NewsItem[]>(initialNews);
   const [campaigns, setCampaigns] = useState<CampaignItem[]>(initialCampaigns);
+  const [donations, setDonations] = useState<DonationItem[]>(initialDonations);
   const [editingCampaignId, setEditingCampaignId] = useState<number | null>(null);
+  const [expandedDonationId, setExpandedDonationId] = useState<number | null>(null);
 
   const [newsForm, setNewsForm] = useState({
     title: "",
@@ -129,23 +169,34 @@ export function DashboardPanel({
     () => members.filter((member) => member.status === "active"),
     [members],
   );
+  const paidDonations = useMemo(
+    () => donations.filter((donation) => donation.paymentStatus === "paid" || !donation.paymentStatus),
+    [donations],
+  );
+  const totalDonationAmount = useMemo(
+    () => paidDonations.reduce((total, donation) => total + donation.amount, 0),
+    [paidDonations],
+  );
 
   const refreshAll = async () => {
     setError("");
-    const [membersRes, newsRes, campaignsRes] = await Promise.all([
+    const [membersRes, newsRes, campaignsRes, donationsRes] = await Promise.all([
       fetch("/api/members", { credentials: "include" }),
       fetch("/api/news", { credentials: "include" }),
       fetch("/api/campaigns", { credentials: "include" }),
+      fetch("/api/donations", { credentials: "include" }),
     ]);
-    if (!membersRes.ok || !newsRes.ok || !campaignsRes.ok) {
+    if (!membersRes.ok || !newsRes.ok || !campaignsRes.ok || !donationsRes.ok) {
       throw new Error("Failed to refresh dashboard data");
     }
     const membersData = (await membersRes.json()) as MemberItem[];
     const newsData = (await newsRes.json()) as NewsItem[];
     const campaignsData = (await campaignsRes.json()) as CampaignItem[];
+    const donationsData = (await donationsRes.json()) as DonationItem[];
     setMembers(membersData);
     setNews(newsData);
     setCampaigns(campaignsData);
+    setDonations(donationsData);
   };
 
   const refreshQueue = async () => {
@@ -344,7 +395,7 @@ export function DashboardPanel({
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <div className="rounded-xl border border-zinc-200 bg-white p-4">
           <p className="text-xs uppercase tracking-wide text-zinc-500">Pending Reviews</p>
           <p className="mt-1 text-2xl font-bold text-zinc-900">{pendingMembers.length}</p>
@@ -361,6 +412,10 @@ export function DashboardPanel({
           <p className="text-xs uppercase tracking-wide text-zinc-500">Live Campaigns</p>
           <p className="mt-1 text-2xl font-bold text-zinc-900">{campaigns.filter((c) => c.isActive).length}</p>
         </div>
+        <div className="rounded-xl border border-zinc-200 bg-white p-4">
+          <p className="text-xs uppercase tracking-wide text-zinc-500">Donation Amount</p>
+          <p className="mt-1 text-2xl font-bold text-zinc-900">{money(totalDonationAmount)}</p>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -370,6 +425,13 @@ export function DashboardPanel({
           onClick={() => setTab("members")}
         >
           Members
+        </button>
+        <button
+          type="button"
+          className={`rounded-md px-4 py-2 text-sm font-semibold ${tab === "donations" ? "bg-rose-700 text-white" : "bg-zinc-100 text-zinc-700"}`}
+          onClick={() => setTab("donations")}
+        >
+          Donations
         </button>
         <button
           type="button"
@@ -474,6 +536,139 @@ export function DashboardPanel({
             {members.length === 0 && (
               <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-500">
                 No membership records found.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === "donations" && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-zinc-900">Donation Payments</h2>
+                <p className="mt-1 text-sm text-zinc-500">
+                  View every donation payment, Razorpay reference, campaign link, and receipt details.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={refreshQueue}
+                className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+              >
+                Refresh Donations
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Paid Donations</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">{paidDonations.length}</p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Total Received</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">{money(totalDonationAmount)}</p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Pending Orders</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">
+                {donations.filter((donation) => donation.paymentStatus !== "paid").length}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {donations.map((donation) => {
+              const expanded = expandedDonationId === donation.id;
+              return (
+                <div key={donation.id} className="rounded-xl border border-zinc-200 bg-white p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-semibold text-zinc-900">{donation.donorName}</h3>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusClass(donation.paymentStatus)}`}>
+                          {donation.paymentStatus}
+                        </span>
+                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">
+                          {donation.paymentMode}
+                        </span>
+                      </div>
+                      <p className="text-sm text-zinc-600">{donation.donorEmail} | {money(donation.amount)}</p>
+                      <p className="text-xs text-zinc-500">
+                        {donation.receiptNumber} | {shortDate(donation.paidAt || donation.createdAt)}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {donation.campaignTitle ? `Campaign: ${donation.campaignTitle}` : `Purpose: ${donation.purpose}`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedDonationId(expanded ? null : donation.id)}
+                      className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+                    >
+                      {expanded ? "Hide Details" : "View Details"}
+                    </button>
+                  </div>
+
+                  {expanded && (
+                    <div className="mt-4 grid gap-4 border-t border-zinc-200 pt-4 lg:grid-cols-2">
+                      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                        <h4 className="text-sm font-semibold text-zinc-900">Donation Detail</h4>
+                        <dl className="mt-3 grid gap-2 text-sm">
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Donor phone</dt>
+                            <dd className="text-right text-zinc-800">{donation.donorPhone || "Not provided"}</dd>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Purpose</dt>
+                            <dd className="text-right text-zinc-800">{donation.purpose}</dd>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Campaign ID</dt>
+                            <dd className="text-right text-zinc-800">{donation.campaignId || "General donation"}</dd>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Created</dt>
+                            <dd className="text-right text-zinc-800">{shortDate(donation.createdAt)}</dd>
+                          </div>
+                        </dl>
+                      </div>
+
+                      <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
+                        <h4 className="text-sm font-semibold text-zinc-900">Receipt</h4>
+                        <div className="mt-3 rounded-md border border-rose-200 bg-white p-3">
+                          <p className="text-xs uppercase tracking-wide text-zinc-500">Receipt Number</p>
+                          <p className="mt-1 break-all font-mono text-sm font-semibold text-rose-700">{donation.receiptNumber}</p>
+                        </div>
+                        <dl className="mt-3 grid gap-2 text-sm">
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Razorpay order</dt>
+                            <dd className="break-all text-right text-zinc-800">{donation.orderId || "Not available"}</dd>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Payment ID</dt>
+                            <dd className="break-all text-right text-zinc-800">{donation.paymentId || "Not available"}</dd>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Paid at</dt>
+                            <dd className="text-right text-zinc-800">{donation.paidAt ? shortDate(donation.paidAt) : "Not paid yet"}</dd>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Razorpay receipt</dt>
+                            <dd className="break-all text-right text-zinc-800">{donation.razorpayReceipt || "Not available"}</dd>
+                          </div>
+                        </dl>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {donations.length === 0 && (
+              <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-500">
+                No donation payments found.
               </div>
             )}
           </div>
