@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { DashboardPanel } from "@/components/admin/dashboard-panel";
 import { getDb } from "@/lib/db";
-import type { CampaignDoc, DonationDoc, GalleryDoc, MemberDoc, NewsDoc } from "@/lib/types";
+import type { CampaignDoc, DonationDoc, GalleryDoc, MemberDoc, NewsDoc, VisitorCertificateDoc } from "@/lib/types";
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -16,6 +16,7 @@ export default async function DashboardPage() {
   const memberRows = await db.collection<MemberDoc>("members").find({}).sort({ joinedAt: -1 }).toArray();
   const donationRows = await db.collection<DonationDoc>("donations").find({}).sort({ createdAt: -1 }).toArray();
   const galleryRows = await db.collection<GalleryDoc>("gallery").find({}).sort({ createdAt: -1 }).toArray();
+  const visitorCertificateRows = await db.collection<VisitorCertificateDoc>("visitorCertificates").find({}).sort({ createdAt: -1 }).toArray();
   const campaignTitleById = new Map(campaignRows.map((campaign) => [campaign.id, campaign.title]));
 
   const initialNews = newsRows.map((item) => ({
@@ -86,7 +87,25 @@ export default async function DashboardPage() {
     imageUrl: item.imageUrl,
     caption: item.caption,
     captionHindi: item.captionHindi,
+    detailsEn: item.detailsEn,
+    detailsHi: item.detailsHi,
     category: item.category,
+    createdAt: item.createdAt.toISOString(),
+  }));
+
+  const initialVisitorCertificates = visitorCertificateRows.map((item) => ({
+    id: item.id,
+    certificateNumber: item.certificateNumber,
+    recipientName: item.recipientName,
+    recipientEmail: item.recipientEmail,
+    recipientPhone: item.recipientPhone,
+    title: item.title,
+    description: item.description,
+    eventName: item.eventName,
+    issuedBy: item.issuedBy,
+    templateId: item.templateId,
+    status: item.status,
+    issuedAt: item.issuedAt.toISOString(),
     createdAt: item.createdAt.toISOString(),
   }));
 
@@ -100,6 +119,7 @@ export default async function DashboardPage() {
           initialMembers={initialMembers}
           initialDonations={initialDonations}
           initialGallery={initialGallery}
+          initialVisitorCertificates={initialVisitorCertificates}
         />
       </div>
     </main>

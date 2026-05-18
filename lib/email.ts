@@ -1,6 +1,11 @@
 import nodemailer from "nodemailer";
 import QRCode from "qrcode";
-import type { MemberDoc } from "@/lib/types";
+import type { DonationDoc, MemberDoc, VisitorCertificateDoc } from "@/lib/types";
+import { generateVisitorCertificatePdf, safeFileName } from "@/lib/visitor-certificates";
+import {
+  generateDonationReceiptPdf,
+  safeFileName as safeDonationFileName,
+} from "@/lib/donation-receipts";
 
 const membershipFees: Record<MemberDoc["membershipType"], number> = {
   general: 500,
@@ -64,5 +69,80 @@ export async function sendMembershipApprovalPaymentEmail(member: MemberDoc) {
         <p style="color: #52525b;">Thank you.</p>
       </div>
     `,
+  });
+}
+
+export async function sendVisitorCertificateEmail(certificate: VisitorCertificateDoc, requestUrl: string) {
+  const fromAddress = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+  if (!fromAddress) {
+    throw new Error("SMTP_FROM or SMTP_USER is not configured.");
+  }
+
+  const pdf = await generateVisitorCertificatePdf(certificate, requestUrl);
+  const transporter = getTransporter();
+
+  await transporter.sendMail({
+    from: fromAddress,
+    to: certificate.recipientEmail,
+    subject: `${certificate.title} - Nisvarthjan Seva Foundation`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #18181b;">
+        <h2 style="margin-bottom: 8px;">Nisvarthjan Seva Foundation</h2>
+        <p style="margin-top: 0; color: #52525b;">A certificate has been issued for you.</p>
+        <p>Dear ${certificate.recipientName},</p>
+        <p>Please find your certificate attached as a PDF.</p>
+        <table style="border-collapse: collapse; margin: 16px 0;">
+          <tr><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">Certificate No.</td><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">${certificate.certificateNumber}</td></tr>
+          <tr><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">Certificate Type</td><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">${certificate.title}</td></tr>
+          <tr><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">Status</td><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">${certificate.status}</td></tr>
+        </table>
+        <p style="color: #52525b;">Thank you.</p>
+      </div>
+    `,
+    attachments: [
+      {
+        filename: `${safeFileName(certificate.certificateNumber)}.pdf`,
+        content: Buffer.from(pdf),
+        contentType: "application/pdf",
+      },
+    ],
+  });
+}
+
+export async function sendDonationReceiptEmail(donation: DonationDoc, requestUrl: string) {
+  const fromAddress = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+  if (!fromAddress) {
+    throw new Error("SMTP_FROM or SMTP_USER is not configured.");
+  }
+
+  const pdf = await generateDonationReceiptPdf(donation, requestUrl);
+  const transporter = getTransporter();
+
+  await transporter.sendMail({
+    from: fromAddress,
+    to: donation.donorEmail,
+    subject: "Donation receipt - Nisvarthjan Seva Foundation",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #18181b;">
+        <h2 style="margin-bottom: 8px;">Nisvarthjan Seva Foundation</h2>
+        <p style="margin-top: 0; color: #52525b;">Thank you for your donation.</p>
+        <p>Dear ${donation.donorName},</p>
+        <p>Your QR-coded donation receipt PDF is attached with this email.</p>
+        <table style="border-collapse: collapse; margin: 16px 0;">
+          <tr><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">Receipt No.</td><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">${donation.receiptNumber}</td></tr>
+          <tr><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">Amount</td><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">INR ${donation.amount.toLocaleString("en-IN")}</td></tr>
+          <tr><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">Payment Mode</td><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">${donation.payment?.mode || "manual"}</td></tr>
+        </table>
+      </div>
+    `,
+    attachments: [
+      {
+        filename: `${safeDonationFileName(donation.receiptNumber)}.pdf`,
+        content: Buffer.from(pdf),
+        contentType: "application/pdf",
+      },
+    ],
   });
 }

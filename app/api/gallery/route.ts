@@ -9,6 +9,8 @@ function toResponse(item: GalleryDoc) {
     imageUrl: item.imageUrl,
     caption: item.caption,
     captionHindi: item.captionHindi,
+    detailsEn: item.detailsEn,
+    detailsHi: item.detailsHi,
     category: item.category,
     createdAt: item.createdAt.toISOString(),
   };
@@ -36,6 +38,8 @@ export async function POST(req: NextRequest) {
     imageUrl: body.imageUrl,
     caption: body.caption || null,
     captionHindi: body.captionHindi || null,
+    detailsEn: body.detailsEn || null,
+    detailsHi: body.detailsHi || null,
     category: body.category,
     createdAt: new Date(),
   };
