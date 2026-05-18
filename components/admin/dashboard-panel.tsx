@@ -12,6 +12,7 @@ type MemberItem = {
   name: string;
   email: string;
   phone: string;
+  dateOfBirth: string | null;
   address: string | null;
   city: string | null;
   state: string | null;
@@ -19,7 +20,16 @@ type MemberItem = {
   membershipId: string;
   status: string;
   certificateNumber: string | null;
+  referral: ReferralInfo | null;
   joinedAt: string;
+};
+
+type ReferralInfo = {
+  code: string;
+  memberId: number;
+  membershipId: string;
+  memberName: string;
+  referredAt: string;
 };
 
 type NewsItem = {
@@ -61,6 +71,7 @@ type DonationItem = {
   purpose: string;
   receiptNumber: string;
   status: string;
+  referral: ReferralInfo | null;
   paymentMode: string;
   paymentStatus: string;
   orderId: string | null;
@@ -222,6 +233,7 @@ export function DashboardPanel({
     purpose: "General Donation",
     paymentMode: "cash" as (typeof donationPaymentModes)[number],
     paymentReference: "",
+    referralCode: "",
   });
 
   const [visitorCertificateForm, setVisitorCertificateForm] = useState({
@@ -255,6 +267,45 @@ export function DashboardPanel({
     () => paidDonations.reduce((total, donation) => total + donation.amount, 0),
     [paidDonations],
   );
+  const referralStats = useMemo(() => {
+    const stats = new Map<
+      number,
+      { memberName: string; membershipId: string; membershipReferrals: number; donationReferrals: number; donationAmount: number }
+    >();
+
+    const ensureStat = (referral: ReferralInfo) => {
+      const existing = stats.get(referral.memberId);
+      if (existing) return existing;
+
+      const created = {
+        memberName: referral.memberName,
+        membershipId: referral.membershipId,
+        membershipReferrals: 0,
+        donationReferrals: 0,
+        donationAmount: 0,
+      };
+      stats.set(referral.memberId, created);
+      return created;
+    };
+
+    members.forEach((member) => {
+      if (member.referral) {
+        ensureStat(member.referral).membershipReferrals += 1;
+      }
+    });
+
+    paidDonations.forEach((donation) => {
+      if (donation.referral) {
+        const stat = ensureStat(donation.referral);
+        stat.donationReferrals += 1;
+        stat.donationAmount += donation.amount;
+      }
+    });
+
+    return Array.from(stats.values()).sort(
+      (a, b) => b.membershipReferrals + b.donationReferrals - (a.membershipReferrals + a.donationReferrals),
+    );
+  }, [members, paidDonations]);
 
   const refreshAll = async () => {
     setError("");
@@ -560,6 +611,7 @@ export function DashboardPanel({
       purpose: "General Donation",
       paymentMode: "cash",
       paymentReference: "",
+      referralCode: "",
     });
   };
 
@@ -585,6 +637,7 @@ export function DashboardPanel({
           purpose: donationForm.purpose,
           paymentMode: donationForm.paymentMode,
           paymentReference: donationForm.paymentReference,
+          referralCode: donationForm.referralCode || undefined,
         }),
       });
       const payload = (await response.json()) as { error?: string; emailSent?: boolean };
@@ -822,6 +875,10 @@ export function DashboardPanel({
                     <p className="text-xs text-zinc-500">
                       {member.membershipId} | Joined {new Date(member.joinedAt).toLocaleDateString("en-IN")}
                     </p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      DOB: {member.dateOfBirth ? new Date(member.dateOfBirth).toLocaleDateString("en-IN") : "Not provided"}
+                      {member.referral ? ` | Referred by ${member.referral.memberName} (${member.referral.membershipId})` : " | Direct registration"}
+                    </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {member.status === "pending" && (
@@ -944,6 +1001,10 @@ export function DashboardPanel({
                 <label className="mb-1 block text-sm font-medium text-zinc-700">Payment Reference</label>
                 <input value={donationForm.paymentReference} onChange={(e) => setDonationForm((p) => ({ ...p, paymentReference: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
               </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">Referral Membership ID</label>
+                <input value={donationForm.referralCode} onChange={(e) => setDonationForm((p) => ({ ...p, referralCode: e.target.value.toUpperCase() }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="NSF-2026-12345" />
+              </div>
             </div>
             <button type="button" onClick={submitManualDonation} disabled={busy} className="mt-4 rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-60">
               {busy ? "Saving..." : "Generate & Email Receipt"}
@@ -964,6 +1025,44 @@ export function DashboardPanel({
               <p className="mt-1 text-2xl font-bold text-zinc-900">
                 {donations.filter((donation) => donation.paymentStatus !== "paid").length}
               </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-zinc-900">Referral Tracking</h2>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Membership registrations and paid donations attributed to member referral links.
+                </p>
+              </div>
+              <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
+                {referralStats.length} referring members
+              </span>
+            </div>
+            <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200">
+              <div className="grid grid-cols-4 bg-zinc-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                <span>Member</span>
+                <span>Membership Referrals</span>
+                <span>Donation Referrals</span>
+                <span>Donation Collection</span>
+              </div>
+              {referralStats.map((stat) => (
+                <div key={stat.membershipId} className="grid grid-cols-4 gap-3 border-t border-zinc-200 px-4 py-3 text-sm">
+                  <div>
+                    <p className="font-semibold text-zinc-900">{stat.memberName}</p>
+                    <p className="text-xs text-zinc-500">{stat.membershipId}</p>
+                  </div>
+                  <p className="text-zinc-800">{stat.membershipReferrals}</p>
+                  <p className="text-zinc-800">{stat.donationReferrals}</p>
+                  <p className="font-semibold text-zinc-900">{money(stat.donationAmount)}</p>
+                </div>
+              ))}
+              {referralStats.length === 0 && (
+                <div className="border-t border-zinc-200 px-4 py-6 text-center text-sm text-zinc-500">
+                  No referral activity tracked yet.
+                </div>
+              )}
             </div>
           </div>
 
@@ -989,6 +1088,9 @@ export function DashboardPanel({
                       </p>
                       <p className="mt-1 text-xs text-zinc-500">
                         {donation.campaignTitle ? `Campaign: ${donation.campaignTitle}` : `Purpose: ${donation.purpose}`}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {donation.referral ? `Referral: ${donation.referral.memberName} (${donation.referral.membershipId})` : "Referral: Direct donation"}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -1035,6 +1137,12 @@ export function DashboardPanel({
                           <div className="flex justify-between gap-4">
                             <dt className="text-zinc-500">Created</dt>
                             <dd className="text-right text-zinc-800">{shortDate(donation.createdAt)}</dd>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Referral</dt>
+                            <dd className="text-right text-zinc-800">
+                              {donation.referral ? `${donation.referral.memberName} (${donation.referral.membershipId})` : "Direct donation"}
+                            </dd>
                           </div>
                         </dl>
                       </div>

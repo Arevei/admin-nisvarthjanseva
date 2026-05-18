@@ -39,6 +39,7 @@ export interface MemberDoc {
   name: string;
   email: string;
   phone: string;
+  dateOfBirth?: string | null;
   address: string | null;
   city: string | null;
   state: string | null;
@@ -46,9 +47,19 @@ export interface MemberDoc {
   membershipId: string;
   status: string;
   certificateNumber: string | null;
+  referral?: ReferralInfo | null;
+  birthdayWishYears?: number[];
   password?: string;
   passwordHash?: string;
   joinedAt: Date;
+}
+
+export interface ReferralInfo {
+  code: string;
+  memberId: number;
+  membershipId: string;
+  memberName: string;
+  referredAt: Date;
 }
 
 export interface DonationDoc {
@@ -61,6 +72,7 @@ export interface DonationDoc {
   purpose: string;
   receiptNumber: string;
   status?: string;
+  referral?: ReferralInfo | null;
   payment?: {
     mode?: "manual" | "razorpay" | "cash" | "upi" | "bank_transfer" | "other";
     status?: string;

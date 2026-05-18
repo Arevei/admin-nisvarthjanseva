@@ -15,6 +15,7 @@ function toResponse(member: MemberDoc) {
     name: member.name,
     email: member.email,
     phone: member.phone,
+    dateOfBirth: member.dateOfBirth ?? null,
     address: member.address,
     city: member.city,
     state: member.state,
@@ -22,6 +23,7 @@ function toResponse(member: MemberDoc) {
     membershipId: member.membershipId,
     status: member.status,
     certificateNumber: member.certificateNumber,
+    referral: member.referral ?? null,
     joinedAt: member.joinedAt.toISOString(),
   };
 }

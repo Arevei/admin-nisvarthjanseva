@@ -52,6 +52,7 @@ export default async function DashboardPage() {
     name: item.name,
     email: item.email,
     phone: item.phone,
+    dateOfBirth: item.dateOfBirth ?? null,
     address: item.address,
     city: item.city,
     state: item.state,
@@ -59,6 +60,12 @@ export default async function DashboardPage() {
     membershipId: item.membershipId,
     status: item.status,
     certificateNumber: item.certificateNumber,
+    referral: item.referral
+      ? {
+          ...item.referral,
+          referredAt: item.referral.referredAt.toISOString(),
+        }
+      : null,
     joinedAt: item.joinedAt.toISOString(),
   }));
 
@@ -73,6 +80,12 @@ export default async function DashboardPage() {
     purpose: item.purpose,
     receiptNumber: item.receiptNumber,
     status: item.status ?? "paid",
+    referral: item.referral
+      ? {
+          ...item.referral,
+          referredAt: item.referral.referredAt.toISOString(),
+        }
+      : null,
     paymentMode: item.payment?.mode ?? "manual",
     paymentStatus: item.payment?.status ?? "paid",
     orderId: item.payment?.orderId ?? null,

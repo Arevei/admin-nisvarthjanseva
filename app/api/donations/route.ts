@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb, nextSequence } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { sendDonationReceiptEmail } from "@/lib/email";
-import type { CampaignDoc, DonationDoc } from "@/lib/types";
+import type { CampaignDoc, DonationDoc, MemberDoc } from "@/lib/types";
 
 function generateReceiptNumber() {
   return `RCP-NSF-${Date.now().toString().slice(-8)}-${Math.floor(Math.random() * 9000) + 1000}`;
@@ -20,6 +20,7 @@ function toResponse(donation: DonationDoc, campaignTitle?: string | null) {
     purpose: donation.purpose,
     receiptNumber: donation.receiptNumber,
     status: donation.status ?? "paid",
+    referral: donation.referral ?? null,
     paymentMode: donation.payment?.mode ?? "manual",
     paymentStatus: donation.payment?.status ?? "paid",
     orderId: donation.payment?.orderId ?? null,
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
     donorPhone?: string;
     campaignId?: number | null;
     purpose?: string;
+    referralCode?: string;
     paymentMode?: "cash" | "upi" | "bank_transfer" | "other" | "manual";
     paymentReference?: string;
   };
@@ -72,6 +74,12 @@ export async function POST(req: NextRequest) {
   }
 
   const db = await getDb();
+  const referralCode = String(body.referralCode ?? "").trim().toUpperCase();
+  const referringMember = referralCode
+    ? await db.collection<MemberDoc>("members").findOne({
+        $or: [{ membershipId: referralCode }, { id: Number(referralCode) || -1 }],
+      })
+    : null;
   const donation: DonationDoc = {
     id: await nextSequence("donations"),
     amount,
@@ -82,6 +90,15 @@ export async function POST(req: NextRequest) {
     purpose: body.purpose,
     receiptNumber: generateReceiptNumber(),
     status: "paid",
+    referral: referringMember
+      ? {
+          code: referralCode,
+          memberId: referringMember.id,
+          membershipId: referringMember.membershipId,
+          memberName: referringMember.name,
+          referredAt: new Date(),
+        }
+      : null,
     payment: {
       mode: body.paymentMode || "cash",
       status: "paid",
