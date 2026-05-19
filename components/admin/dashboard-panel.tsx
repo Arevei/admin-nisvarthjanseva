@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { RichTextEditor } from "@/components/admin/rich-text-editor";
 import { CloudinaryUpload } from "@/components/admin/cloudinary-upload";
 
-type Tab = "members" | "donations" | "news" | "campaigns" | "gallery" | "visitorCertificates";
+type Tab = "members" | "donations" | "analytics" | "news" | "campaigns" | "gallery" | "visitorCertificates";
 
 type MemberItem = {
   id: number;
@@ -151,6 +151,11 @@ function money(amount: number) {
   return `Rs ${amount.toLocaleString("en-IN")}`;
 }
 
+function percent(value: number, total: number) {
+  if (!total || total <= 0) return 0;
+  return Math.min(100, Math.round((value / total) * 100));
+}
+
 function shortDate(date: string) {
   return new Date(date).toLocaleString("en-IN", {
     day: "2-digit",
@@ -267,45 +272,32 @@ export function DashboardPanel({
     () => paidDonations.reduce((total, donation) => total + donation.amount, 0),
     [paidDonations],
   );
-  const referralStats = useMemo(() => {
-    const stats = new Map<
-      number,
-      { memberName: string; membershipId: string; membershipReferrals: number; donationReferrals: number; donationAmount: number }
-    >();
-
-    const ensureStat = (referral: ReferralInfo) => {
-      const existing = stats.get(referral.memberId);
-      if (existing) return existing;
-
-      const created = {
-        memberName: referral.memberName,
-        membershipId: referral.membershipId,
-        membershipReferrals: 0,
-        donationReferrals: 0,
-        donationAmount: 0,
+  const donationAnalytics = useMemo(() => {
+    const campaignTotals = campaigns.map((campaign) => {
+      const campaignDonations = paidDonations.filter((donation) => donation.campaignId === campaign.id);
+      const collected = campaignDonations.reduce((total, donation) => total + donation.amount, 0);
+      return {
+        ...campaign,
+        collected,
+        donationCount: campaignDonations.length,
+        progress: percent(campaign.raisedAmount || collected, campaign.goalAmount),
       };
-      stats.set(referral.memberId, created);
-      return created;
+    });
+    const generalDonations = paidDonations.filter((donation) => !donation.campaignId);
+    const pendingAmount = donations
+      .filter((donation) => donation.paymentStatus !== "paid")
+      .reduce((total, donation) => total + donation.amount, 0);
+
+    return {
+      activeCampaigns: campaigns.filter((campaign) => campaign.isActive).length,
+      totalGoalAmount: campaigns.reduce((total, campaign) => total + campaign.goalAmount, 0),
+      totalRaisedAmount: campaigns.reduce((total, campaign) => total + campaign.raisedAmount, 0),
+      generalDonationAmount: generalDonations.reduce((total, donation) => total + donation.amount, 0),
+      generalDonationCount: generalDonations.length,
+      pendingAmount,
+      campaignTotals: campaignTotals.sort((a, b) => b.raisedAmount - a.raisedAmount),
     };
-
-    members.forEach((member) => {
-      if (member.referral) {
-        ensureStat(member.referral).membershipReferrals += 1;
-      }
-    });
-
-    paidDonations.forEach((donation) => {
-      if (donation.referral) {
-        const stat = ensureStat(donation.referral);
-        stat.donationReferrals += 1;
-        stat.donationAmount += donation.amount;
-      }
-    });
-
-    return Array.from(stats.values()).sort(
-      (a, b) => b.membershipReferrals + b.donationReferrals - (a.membershipReferrals + a.donationReferrals),
-    );
-  }, [members, paidDonations]);
+  }, [campaigns, donations, paidDonations]);
 
   const refreshAll = async () => {
     setError("");
@@ -523,7 +515,7 @@ export function DashboardPanel({
 
   const submitGallery = async () => {
     if (!galleryForm.imageUrl.trim()) {
-      setError("Gallery image is required.");
+      setError("Activity post image is required.");
       return;
     }
 
@@ -538,13 +530,13 @@ export function DashboardPanel({
       });
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };
-        throw new Error(payload.error || "Failed to add gallery image");
+        throw new Error(payload.error || "Failed to add activity post");
       }
 
       resetGalleryForm();
       await refreshAll();
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Failed to add gallery image");
+      setError(submitError instanceof Error ? submitError.message : "Failed to add activity post");
     } finally {
       setBusy(false);
     }
@@ -553,7 +545,7 @@ export function DashboardPanel({
   const updateGallery = async () => {
     if (!editingGalleryId) return;
     if (!galleryForm.imageUrl.trim()) {
-      setError("Gallery image is required.");
+      setError("Activity post image is required.");
       return;
     }
 
@@ -568,13 +560,13 @@ export function DashboardPanel({
       });
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };
-        throw new Error(payload.error || "Failed to update gallery image");
+        throw new Error(payload.error || "Failed to update activity post");
       }
 
       resetGalleryForm();
       await refreshAll();
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Failed to update gallery image");
+      setError(submitError instanceof Error ? submitError.message : "Failed to update activity post");
     } finally {
       setBusy(false);
     }
@@ -590,12 +582,12 @@ export function DashboardPanel({
       });
       if (!response.ok && response.status !== 204) {
         const payload = (await response.json()) as { error?: string };
-        throw new Error(payload.error || "Failed to delete gallery image");
+        throw new Error(payload.error || "Failed to delete activity post");
       }
 
       await refreshAll();
     } catch (removeError) {
-      setError(removeError instanceof Error ? removeError.message : "Failed to delete gallery image");
+      setError(removeError instanceof Error ? removeError.message : "Failed to delete activity post");
     } finally {
       setBusy(false);
     }
@@ -766,6 +758,24 @@ export function DashboardPanel({
           >
             Logout
           </button>
+          <a
+            href="/referrals"
+            className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
+          >
+            Referral Tracking
+          </a>
+          <a
+            href="/receipts"
+            className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
+          >
+            Receipt Dashboard
+          </a>
+          <a
+            href="/enquiries"
+            className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
+          >
+            Enquiries
+          </a>
         </div>
       </div>
 
@@ -809,6 +819,13 @@ export function DashboardPanel({
         </button>
         <button
           type="button"
+          className={`rounded-md px-4 py-2 text-sm font-semibold ${tab === "analytics" ? "bg-rose-700 text-white" : "bg-zinc-100 text-zinc-700"}`}
+          onClick={() => setTab("analytics")}
+        >
+          Analytics
+        </button>
+        <button
+          type="button"
           className={`rounded-md px-4 py-2 text-sm font-semibold ${tab === "news" ? "bg-rose-700 text-white" : "bg-zinc-100 text-zinc-700"}`}
           onClick={() => setTab("news")}
         >
@@ -826,7 +843,7 @@ export function DashboardPanel({
           className={`rounded-md px-4 py-2 text-sm font-semibold ${tab === "gallery" ? "bg-rose-700 text-white" : "bg-zinc-100 text-zinc-700"}`}
           onClick={() => setTab("gallery")}
         >
-          Gallery
+          Activity Post
         </button>
         <button
           type="button"
@@ -1028,44 +1045,6 @@ export function DashboardPanel({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-zinc-900">Referral Tracking</h2>
-                <p className="mt-1 text-sm text-zinc-500">
-                  Membership registrations and paid donations attributed to member referral links.
-                </p>
-              </div>
-              <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
-                {referralStats.length} referring members
-              </span>
-            </div>
-            <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200">
-              <div className="grid grid-cols-4 bg-zinc-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                <span>Member</span>
-                <span>Membership Referrals</span>
-                <span>Donation Referrals</span>
-                <span>Donation Collection</span>
-              </div>
-              {referralStats.map((stat) => (
-                <div key={stat.membershipId} className="grid grid-cols-4 gap-3 border-t border-zinc-200 px-4 py-3 text-sm">
-                  <div>
-                    <p className="font-semibold text-zinc-900">{stat.memberName}</p>
-                    <p className="text-xs text-zinc-500">{stat.membershipId}</p>
-                  </div>
-                  <p className="text-zinc-800">{stat.membershipReferrals}</p>
-                  <p className="text-zinc-800">{stat.donationReferrals}</p>
-                  <p className="font-semibold text-zinc-900">{money(stat.donationAmount)}</p>
-                </div>
-              ))}
-              {referralStats.length === 0 && (
-                <div className="border-t border-zinc-200 px-4 py-6 text-center text-sm text-zinc-500">
-                  No referral activity tracked yet.
-                </div>
-              )}
-            </div>
-          </div>
-
           <div className="space-y-3">
             {donations.map((donation) => {
               const expanded = expandedDonationId === donation.id;
@@ -1186,6 +1165,124 @@ export function DashboardPanel({
         </div>
       )}
 
+      {tab === "analytics" && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-zinc-900">Crowd Funding Analytics</h2>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Monitor donation collections, campaign goals, and simultaneous active fundraising campaigns.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={refreshQueue}
+                className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+              >
+                Refresh Analytics
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Total Received</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">{money(totalDonationAmount)}</p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Campaign Goals</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">{money(donationAnalytics.totalGoalAmount)}</p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Active Campaigns</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">{donationAnalytics.activeCampaigns}</p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Pending Orders</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">{money(donationAnalytics.pendingAmount)}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[1.4fr_0.8fr]">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+              <h3 className="text-base font-bold text-zinc-900">Campaign Goal Progress</h3>
+              <div className="mt-4 space-y-4">
+                {donationAnalytics.campaignTotals.map((campaign) => (
+                  <div key={campaign.id} className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-semibold text-zinc-900">{campaign.title}</h4>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${campaign.isActive ? "bg-emerald-100 text-emerald-800" : "bg-zinc-200 text-zinc-700"}`}>
+                            {campaign.isActive ? "active" : "inactive"}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          {campaign.donationCount} paid donations | {campaign.category}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold text-zinc-900">
+                        {money(campaign.raisedAmount)} / {money(campaign.goalAmount)}
+                      </p>
+                    </div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-200">
+                      <div className="h-full rounded-full bg-rose-700" style={{ width: `${campaign.progress}%` }} />
+                    </div>
+                    <p className="mt-2 text-xs font-semibold text-zinc-600">{campaign.progress}% of goal reached</p>
+                  </div>
+                ))}
+                {donationAnalytics.campaignTotals.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
+                    No campaigns found. Create multiple campaigns from the Campaigns tab.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+                <h3 className="text-base font-bold text-zinc-900">Donation Mix</h3>
+                <dl className="mt-4 space-y-3 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-zinc-500">Campaign donations</dt>
+                    <dd className="font-semibold text-zinc-900">{paidDonations.length - donationAnalytics.generalDonationCount}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-zinc-500">General donations</dt>
+                    <dd className="font-semibold text-zinc-900">{donationAnalytics.generalDonationCount}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-zinc-500">General amount</dt>
+                    <dd className="font-semibold text-zinc-900">{money(donationAnalytics.generalDonationAmount)}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-zinc-500">Overall goal progress</dt>
+                    <dd className="font-semibold text-zinc-900">
+                      {percent(donationAnalytics.totalRaisedAmount, donationAnalytics.totalGoalAmount)}%
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+                <h3 className="text-base font-bold text-zinc-900">Multiple Campaign Management</h3>
+                <p className="mt-2 text-sm text-zinc-500">
+                  The Campaigns tab can run any number of fundraising campaigns at the same time. Keep several campaigns active, pause inactive campaigns, and track each goal independently here.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setTab("campaigns")}
+                  className="mt-4 rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800"
+                >
+                  Manage Campaigns
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {tab === "news" && (
         <div className="space-y-4">
           <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
@@ -1252,7 +1349,7 @@ export function DashboardPanel({
                     onClick={() => removeNews(item.id)}
                     className="rounded-md border border-red-300 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
                   >
-                    Delete
+                    Delete News
                   </button>
                 </div>
               </div>
@@ -1264,7 +1361,17 @@ export function DashboardPanel({
       {tab === "campaigns" && (
         <div className="space-y-4">
           <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-zinc-900">Create Campaign</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-zinc-900">Create Campaign</h2>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Run multiple fundraising campaigns simultaneously and manage each campaign goal independently.
+                </p>
+              </div>
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                {campaigns.filter((campaign) => campaign.isActive).length} active campaigns
+              </span>
+            </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">Title (English)</label>
@@ -1372,10 +1479,10 @@ export function DashboardPanel({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold text-zinc-900">
-                  {editingGalleryId ? "Edit Gallery Event" : "Add Gallery Event"}
+                  {editingGalleryId ? "Edit Activity Post" : "Add Activity Post"}
                 </h2>
                 <p className="mt-1 text-sm text-zinc-500">
-                  These images appear on the public gallery page and the home page gallery highlights.
+                  These activity posts appear on the public gallery page and the home page activity highlights.
                 </p>
               </div>
               {editingGalleryId && (
@@ -1390,7 +1497,7 @@ export function DashboardPanel({
             </div>
 
             <div className="mt-4">
-              <CloudinaryUpload value={galleryForm.imageUrl} onChange={(imageUrl) => setGalleryForm((p) => ({ ...p, imageUrl }))} label="Gallery Image" />
+              <CloudinaryUpload value={galleryForm.imageUrl} onChange={(imageUrl) => setGalleryForm((p) => ({ ...p, imageUrl }))} label="Activity Post Image" />
             </div>
 
             <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -1429,7 +1536,7 @@ export function DashboardPanel({
               disabled={busy}
               className="mt-4 rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-60"
             >
-              {busy ? "Saving..." : editingGalleryId ? "Save Gallery Event" : "Add Gallery Event"}
+              {busy ? "Saving..." : editingGalleryId ? "Save Activity Post" : "Add Activity Post"}
             </button>
           </div>
 
@@ -1439,7 +1546,7 @@ export function DashboardPanel({
                 <div className="grid gap-0 sm:grid-cols-[180px_1fr]">
                   <div className="h-44 bg-zinc-100 sm:h-full">
                     {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.caption || "Gallery image"} className="h-full w-full object-cover" />
+                      <img src={item.imageUrl} alt={item.caption || "Activity post image"} className="h-full w-full object-cover" />
                     ) : (
                       <div className="flex h-full items-center justify-center text-sm text-zinc-500">No image</div>
                     )}
@@ -1449,7 +1556,7 @@ export function DashboardPanel({
                       <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">{item.category}</span>
                       <span className="text-xs text-zinc-500">{new Date(item.createdAt).toLocaleDateString("en-IN")}</span>
                     </div>
-                    <h3 className="text-base font-semibold text-zinc-900">{item.caption || "Untitled gallery event"}</h3>
+                    <h3 className="text-base font-semibold text-zinc-900">{item.caption || "Untitled activity post"}</h3>
                     {item.captionHindi && <p className="mt-1 text-sm text-zinc-500">{item.captionHindi}</p>}
                     {item.detailsEn && <p className="mt-2 line-clamp-2 text-sm text-zinc-600">{item.detailsEn}</p>}
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -1484,7 +1591,7 @@ export function DashboardPanel({
             ))}
             {gallery.length === 0 && (
               <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-500 md:col-span-2">
-                No gallery events found. Add the first event image above.
+                No activity posts found. Add the first activity image above.
               </div>
             )}
           </div>

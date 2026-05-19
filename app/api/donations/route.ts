@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb, nextSequence } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { sendDonationReceiptEmail } from "@/lib/email";
+import { issueReferralAchievementIfEligible } from "@/lib/referral-achievement-service";
 import type { CampaignDoc, DonationDoc, MemberDoc } from "@/lib/types";
 
 function generateReceiptNumber() {
@@ -118,6 +119,10 @@ export async function POST(req: NextRequest) {
       { id: donation.campaignId },
       { $inc: { raisedAmount: amount, donorCount: 1 } },
     );
+  }
+
+  if (donation.referral) {
+    await issueReferralAchievementIfEligible(db, donation.referral.memberId, req.url);
   }
 
   let emailSent = true;

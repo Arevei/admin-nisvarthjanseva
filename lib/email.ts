@@ -6,6 +6,14 @@ import {
   generateDonationReceiptPdf,
   safeFileName as safeDonationFileName,
 } from "@/lib/donation-receipts";
+import {
+  formatAmount as formatReferralAmount,
+  generateReferralAchievementCertificatePdf,
+  getReferralAchievementTierConfig,
+  safeFileName as safeReferralFileName,
+  safeText as safeReferralText,
+  type ReferralAchievementMember,
+} from "@/lib/referral-achievements";
 
 const membershipFees: Record<MemberDoc["membershipType"], number> = {
   general: 500,
@@ -144,5 +152,76 @@ export async function sendDonationReceiptEmail(donation: DonationDoc, requestUrl
         contentType: "application/pdf",
       },
     ],
+  });
+}
+
+export async function sendReferralAchievementEmail(member: ReferralAchievementMember, requestUrl: string) {
+  const fromAddress = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+  if (!fromAddress) {
+    throw new Error("SMTP_FROM or SMTP_USER is not configured.");
+  }
+
+  if (!member.email) {
+    throw new Error("Member email is not available.");
+  }
+
+  if (!member.referralAchievement) {
+    throw new Error("Referral achievement is not allotted.");
+  }
+
+  const achievement = member.referralAchievement;
+  const tier = getReferralAchievementTierConfig(achievement.tier);
+  const pdf = await generateReferralAchievementCertificatePdf(member, requestUrl);
+  const transporter = getTransporter();
+
+  await transporter.sendMail({
+    from: fromAddress,
+    to: member.email,
+    subject: `${tier.label} referral achievement certificate`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #18181b;">
+        <h2 style="margin-bottom: 8px;">Nisvarthjan Seva Foundation</h2>
+        <p style="margin-top: 0; color: #52525b;">Congratulations on your referral achievement.</p>
+        <p>Dear ${safeReferralText(member.name)},</p>
+        <p>You have been awarded the <strong>${tier.label} Badge</strong> for collecting ${formatReferralAmount(achievement.donationAmount)} through donation referrals.</p>
+        <p>Your certificate PDF is attached with this email.</p>
+      </div>
+    `,
+    attachments: [
+      {
+        filename: `${safeReferralFileName(achievement.certificateNumber)}.pdf`,
+        content: Buffer.from(pdf),
+        contentType: "application/pdf",
+      },
+    ],
+  });
+}
+
+export async function sendEnquiryReplyEmail(enquiry: { name: string; email: string; message: string }, replyMessage: string) {
+  const fromAddress = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+  if (!fromAddress) {
+    throw new Error("SMTP_FROM or SMTP_USER is not configured.");
+  }
+
+  const transporter = getTransporter();
+
+  await transporter.sendMail({
+    from: fromAddress,
+    to: enquiry.email,
+    subject: "Reply to your enquiry - Nisvarthjan Seva Foundation",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #18181b;">
+        <h2 style="margin-bottom: 8px;">Nisvarthjan Seva Foundation</h2>
+        <p>Dear ${enquiry.name},</p>
+        <p>${replyMessage.replace(/\n/g, "<br />")}</p>
+        <div style="margin: 16px 0; padding: 12px; border: 1px solid #e4e4e7; border-radius: 8px; background: #fafafa;">
+          <p style="margin: 0 0 6px; font-weight: 700;">Your enquiry</p>
+          <p style="margin: 0; color: #52525b;">${enquiry.message}</p>
+        </div>
+        <p style="color: #52525b;">Thank you.</p>
+      </div>
+    `,
   });
 }
