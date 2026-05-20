@@ -6,6 +6,7 @@ import {
   referralAchievementTiers,
   type ReferralAchievementMember,
 } from "@/lib/referral-achievements";
+import { getReferralAchievementStats } from "@/lib/referral-achievement-service";
 import { getSession } from "@/lib/session";
 import type { MemberDoc, ReferralAchievement, ReferralAchievementTier } from "@/lib/types";
 
@@ -13,24 +14,6 @@ type Ctx = { params: Promise<{ memberId: string }> };
 type UpdateBody = {
   tier?: ReferralAchievementTier | null;
 };
-
-async function getPaidReferralDonationTotal(memberId: number) {
-  const db = await getDb();
-  const rows = await db
-    .collection("donations")
-    .aggregate<{ total: number }>([
-      {
-        $match: {
-          "referral.memberId": memberId,
-          $or: [{ status: "paid" }, { "payment.status": "paid" }, { payment: { $exists: false } }],
-        },
-      },
-      { $group: { _id: null, total: { $sum: "$amount" } } },
-    ])
-    .toArray();
-
-  return Number(rows[0]?.total ?? 0);
-}
 
 function toResponse(member: MemberDoc) {
   return {
@@ -83,13 +66,17 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ member: updated ? toResponse(updated) : null, emailSent: false });
   }
 
-  const donationAmount = await getPaidReferralDonationTotal(memberId);
+  const stats = await getReferralAchievementStats(db, memberId);
   const now = new Date();
   const achievement: ReferralAchievement = {
     tier,
     certificateNumber:
       member.referralAchievement?.certificateNumber || generateReferralAchievementCertificateNumber(tier),
-    donationAmount,
+    membershipReferralCount: stats.membershipReferralCount,
+    donationReferralCount: stats.donationReferralCount,
+    donationAmount: stats.donationAmount,
+    requiredMembershipReferrals: tierConfig.membershipReferralCount,
+    requiredDonationReferrals: tierConfig.donationReferralCount,
     thresholdAmount: tierConfig.thresholdAmount,
     issuedAt: member.referralAchievement?.issuedAt || now,
     updatedAt: now,

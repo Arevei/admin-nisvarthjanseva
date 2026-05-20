@@ -5,7 +5,7 @@ import Link from "next/link";
 
 type EnquiryStatus = "new" | "in_review" | "replied" | "closed";
 
-type EnquiryItem = {
+export type EnquiryItem = {
   id: number;
   name: string;
   email: string;
@@ -48,7 +48,13 @@ function statusClass(status: EnquiryStatus) {
   return "bg-zinc-200 text-zinc-700";
 }
 
-export function EnquiryManagementPanel({ initialEnquiries }: { initialEnquiries: EnquiryItem[] }) {
+export function EnquiryManagementPanel({
+  initialEnquiries,
+  embedded = false,
+}: {
+  initialEnquiries: EnquiryItem[];
+  embedded?: boolean;
+}) {
   const [enquiries, setEnquiries] = useState(initialEnquiries);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | EnquiryStatus>("all");
@@ -111,25 +117,27 @@ export function EnquiryManagementPanel({ initialEnquiries }: { initialEnquiries:
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-rose-700 p-6 text-white shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
-              Enquiry Management
-            </p>
-            <h1 className="mt-3 text-3xl font-bold">Website Enquiries</h1>
-            <p className="mt-1 text-sm text-rose-100">
-              View, search, filter, and reply to website enquiries directly by email.
-            </p>
+      {!embedded && (
+        <div className="rounded-2xl bg-rose-700 p-6 text-white shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
+                Enquiry Management
+              </p>
+              <h1 className="mt-3 text-3xl font-bold">Website Enquiries</h1>
+              <p className="mt-1 text-sm text-rose-100">
+                View, search, filter, and reply to website enquiries directly by email.
+              </p>
+            </div>
+            <Link
+              href="/dashboard"
+              className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
+            >
+              Back to Dashboard
+            </Link>
           </div>
-          <Link
-            href="/dashboard"
-            className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
-          >
-            Back to Dashboard
-          </Link>
         </div>
-      </div>
+      )}
 
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-zinc-200 bg-white p-4">

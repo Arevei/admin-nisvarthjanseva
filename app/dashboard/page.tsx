@@ -2,7 +2,55 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { DashboardPanel } from "@/components/admin/dashboard-panel";
 import { getDb } from "@/lib/db";
-import type { CampaignDoc, DonationDoc, GalleryDoc, MemberDoc, NewsDoc, VisitorCertificateDoc } from "@/lib/types";
+import { getReceiptIdentity } from "@/lib/receipt-documents";
+import type {
+  CampaignDoc,
+  DonationDoc,
+  EnquiryDoc,
+  EventRegistrationReceiptDoc,
+  GalleryDoc,
+  MemberDoc,
+  NewsDoc,
+  VisitorCertificateDoc,
+} from "@/lib/types";
+
+function paidDonation(donation: DonationDoc) {
+  return donation.status === "paid" || donation.payment?.status === "paid" || !donation.payment;
+}
+
+function membershipReceiptAvailable(member: MemberDoc) {
+  return member.payment?.status === "paid" || member.status === "active";
+}
+
+function serializeReferralAchievement(member: MemberDoc) {
+  if (!member.referralAchievement) return null;
+
+  return {
+    ...member.referralAchievement,
+    issuedAt: member.referralAchievement.issuedAt.toISOString(),
+    updatedAt: member.referralAchievement.updatedAt?.toISOString() ?? null,
+    lastEmailSentAt: member.referralAchievement.lastEmailSentAt?.toISOString() ?? null,
+  };
+}
+
+function serializeEnquiry(enquiry: EnquiryDoc) {
+  return {
+    id: enquiry.id,
+    name: enquiry.name,
+    email: enquiry.email,
+    phone: enquiry.phone,
+    message: enquiry.message,
+    status: enquiry.status ?? "new",
+    autoResponseSent: enquiry.autoResponseSent ?? false,
+    autoResponseSentAt: enquiry.autoResponseSentAt?.toISOString() ?? null,
+    replies: (enquiry.replies ?? []).map((reply) => ({
+      ...reply,
+      sentAt: reply.sentAt.toISOString(),
+    })),
+    createdAt: enquiry.createdAt.toISOString(),
+    updatedAt: enquiry.updatedAt?.toISOString() ?? null,
+  };
+}
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -17,6 +65,8 @@ export default async function DashboardPage() {
   const donationRows = await db.collection<DonationDoc>("donations").find({}).sort({ createdAt: -1 }).toArray();
   const galleryRows = await db.collection<GalleryDoc>("gallery").find({}).sort({ createdAt: -1 }).toArray();
   const visitorCertificateRows = await db.collection<VisitorCertificateDoc>("visitorCertificates").find({}).sort({ createdAt: -1 }).toArray();
+  const eventReceiptRows = await db.collection<EventRegistrationReceiptDoc>("eventRegistrationReceipts").find({}).sort({ createdAt: -1 }).toArray();
+  const enquiryRows = await db.collection<EnquiryDoc>("contacts").find({}).sort({ createdAt: -1 }).toArray();
   const campaignTitleById = new Map(campaignRows.map((campaign) => [campaign.id, campaign.title]));
 
   const initialNews = newsRows.map((item) => ({
@@ -122,9 +172,89 @@ export default async function DashboardPage() {
     createdAt: item.createdAt.toISOString(),
   }));
 
+  const membershipReferralCounts = new Map<number, number>();
+  memberRows.forEach((member) => {
+    if (member.referral) {
+      membershipReferralCounts.set(member.referral.memberId, (membershipReferralCounts.get(member.referral.memberId) ?? 0) + 1);
+    }
+  });
+
+  const donationReferralStats = new Map<number, { count: number; amount: number }>();
+  donationRows.filter(paidDonation).forEach((donation) => {
+    if (!donation.referral) return;
+    const existing = donationReferralStats.get(donation.referral.memberId) ?? { count: 0, amount: 0 };
+    existing.count += 1;
+    existing.amount += donation.amount;
+    donationReferralStats.set(donation.referral.memberId, existing);
+  });
+
+  const initialReferralRows = memberRows
+    .map((member) => {
+      const donationStats = donationReferralStats.get(member.id) ?? { count: 0, amount: 0 };
+      return {
+        id: member.id,
+        name: member.name,
+        email: member.email,
+        membershipId: member.membershipId,
+        membershipReferrals: membershipReferralCounts.get(member.id) ?? 0,
+        donationReferrals: donationStats.count,
+        donationAmount: donationStats.amount,
+        referralAchievement: serializeReferralAchievement(member),
+      };
+    })
+    .sort((a, b) => b.donationAmount - a.donationAmount || b.membershipReferrals - a.membershipReferrals);
+
+  const initialMembershipReceipts = memberRows.filter(membershipReceiptAvailable).map((member) => {
+    const receipt = getReceiptIdentity("membership", member);
+    return {
+      id: member.id,
+      memberName: member.name,
+      memberEmail: member.email,
+      membershipId: member.membershipId,
+      receiptNumber: receipt.receiptNumber,
+      amount: receipt.amount,
+      status: receipt.status,
+      paymentMode: receipt.paymentMode,
+      paidAt: new Date(receipt.paidAt).toISOString(),
+    };
+  });
+
+  const initialDonationReceipts = donationRows.filter(paidDonation).map((donation) => {
+    const receipt = getReceiptIdentity("donation", donation);
+    return {
+      id: donation.id,
+      donorName: donation.donorName,
+      donorEmail: donation.donorEmail,
+      receiptNumber: receipt.receiptNumber,
+      amount: receipt.amount,
+      status: receipt.status,
+      paymentMode: receipt.paymentMode,
+      purpose: donation.purpose,
+      paidAt: new Date(receipt.paidAt).toISOString(),
+    };
+  });
+
+  const initialEventReceipts = eventReceiptRows.map((receipt) => ({
+    id: receipt.id,
+    receiptNumber: receipt.receiptNumber,
+    eventName: receipt.eventName,
+    attendeeName: receipt.attendeeName,
+    attendeeEmail: receipt.attendeeEmail,
+    attendeePhone: receipt.attendeePhone,
+    amount: receipt.amount,
+    status: receipt.status,
+    paymentMode: receipt.payment.mode,
+    paymentReference: receipt.payment.reference ?? null,
+    paidAt: receipt.payment.paidAt.toISOString(),
+    notes: receipt.notes,
+    createdAt: receipt.createdAt.toISOString(),
+  }));
+
+  const initialEnquiries = enquiryRows.map(serializeEnquiry);
+
   return (
     <main className="min-h-screen bg-zinc-100 px-4 py-8">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-7xl">
         <DashboardPanel
           email={session.adminEmail}
           initialNews={initialNews}
@@ -133,6 +263,11 @@ export default async function DashboardPage() {
           initialDonations={initialDonations}
           initialGallery={initialGallery}
           initialVisitorCertificates={initialVisitorCertificates}
+          initialReferralRows={initialReferralRows}
+          initialMembershipReceipts={initialMembershipReceipts}
+          initialDonationReceipts={initialDonationReceipts}
+          initialEventReceipts={initialEventReceipts}
+          initialEnquiries={initialEnquiries}
         />
       </div>
     </main>

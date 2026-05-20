@@ -4,10 +4,14 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ReferralAchievementTier } from "@/lib/types";
 
-type ReferralAchievementItem = {
+export type ReferralAchievementItem = {
   tier: ReferralAchievementTier;
   certificateNumber: string;
+  membershipReferralCount?: number;
+  donationReferralCount?: number;
   donationAmount: number;
+  requiredMembershipReferrals?: number;
+  requiredDonationReferrals?: number;
   thresholdAmount: number;
   issuedAt: string;
   updatedAt?: string | null;
@@ -16,7 +20,7 @@ type ReferralAchievementItem = {
   lastEmailSentAt?: string | null;
 };
 
-type ReferralMemberRow = {
+export type ReferralMemberRow = {
   id: number;
   name: string;
   email: string;
@@ -27,11 +31,17 @@ type ReferralMemberRow = {
   referralAchievement: ReferralAchievementItem | null;
 };
 
-const tiers: Array<{ tier: ReferralAchievementTier; label: string; thresholdAmount: number }> = [
-  { tier: "silver", label: "Silver", thresholdAmount: 10000 },
-  { tier: "gold", label: "Gold", thresholdAmount: 25000 },
-  { tier: "platinum", label: "Platinum", thresholdAmount: 50000 },
-  { tier: "diamond", label: "Diamond", thresholdAmount: 100000 },
+const tiers: Array<{
+  tier: ReferralAchievementTier;
+  label: string;
+  membershipReferralCount: number;
+  donationReferralCount: number;
+  thresholdAmount: number;
+}> = [
+  { tier: "silver", label: "Silver", membershipReferralCount: 2, donationReferralCount: 1, thresholdAmount: 10000 },
+  { tier: "gold", label: "Gold", membershipReferralCount: 5, donationReferralCount: 3, thresholdAmount: 25000 },
+  { tier: "platinum", label: "Platinum", membershipReferralCount: 10, donationReferralCount: 5, thresholdAmount: 50000 },
+  { tier: "diamond", label: "Diamond", membershipReferralCount: 20, donationReferralCount: 10, thresholdAmount: 100000 },
 ];
 
 function money(amount: number) {
@@ -42,7 +52,13 @@ function tierLabel(tier: string) {
   return tier.charAt(0).toUpperCase() + tier.slice(1);
 }
 
-export function ReferralTrackingPanel({ initialRows }: { initialRows: ReferralMemberRow[] }) {
+export function ReferralTrackingPanel({
+  initialRows,
+  embedded = false,
+}: {
+  initialRows: ReferralMemberRow[];
+  embedded?: boolean;
+}) {
   const [rows, setRows] = useState(initialRows);
   const [busyMemberId, setBusyMemberId] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -101,25 +117,27 @@ export function ReferralTrackingPanel({ initialRows }: { initialRows: ReferralMe
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-rose-700 p-6 text-white shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
-              Referral Achievement Center
-            </p>
-            <h1 className="mt-3 text-3xl font-bold">Referral Tracking</h1>
-            <p className="mt-1 text-sm text-rose-100">
-              Track member referral collections and manage Silver, Gold, Platinum, and Diamond certificates.
-            </p>
+      {!embedded && (
+        <div className="rounded-2xl bg-rose-700 p-6 text-white shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
+                Achievement Certificate Center
+              </p>
+              <h1 className="mt-3 text-3xl font-bold">Referral Tracking</h1>
+              <p className="mt-1 text-sm text-rose-100">
+                Track member referral collections and manage Silver, Gold, Platinum, and Diamond certificates.
+              </p>
+            </div>
+            <Link
+              href="/dashboard"
+              className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
+            >
+              Back to Dashboard
+            </Link>
           </div>
-          <Link
-            href="/dashboard"
-            className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
-          >
-            Back to Dashboard
-          </Link>
         </div>
-      </div>
+      )}
 
       <div className="grid gap-3 md:grid-cols-5">
         <div className="rounded-xl border border-zinc-200 bg-white p-4">
@@ -150,7 +168,15 @@ export function ReferralTrackingPanel({ initialRows }: { initialRows: ReferralMe
           {tiers.map((tier) => (
             <div key={tier.tier} className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
               <p className="text-sm font-semibold text-zinc-900">{tier.label} Badge</p>
-              <p className="mt-1 text-xl font-bold text-rose-700">{money(tier.thresholdAmount)}</p>
+              <div className="mt-3 space-y-1 text-xs text-zinc-600">
+                <p>
+                  <span className="font-semibold text-zinc-900">{tier.membershipReferralCount}</span> membership referrals
+                </p>
+                <p>
+                  <span className="font-semibold text-zinc-900">{tier.donationReferralCount}</span> donation referrals
+                </p>
+                <p className="font-bold text-rose-700">{money(tier.thresholdAmount)} collection</p>
+              </div>
             </div>
           ))}
         </div>
@@ -187,6 +213,11 @@ export function ReferralTrackingPanel({ initialRows }: { initialRows: ReferralMe
                     {tierLabel(row.referralAchievement.tier)}
                   </span>
                   <p className="mt-1 break-all text-xs text-zinc-500">{row.referralAchievement.certificateNumber}</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {row.referralAchievement.membershipReferralCount ?? row.membershipReferrals} members,{" "}
+                    {row.referralAchievement.donationReferralCount ?? row.donationReferrals} donations,{" "}
+                    {money(row.referralAchievement.donationAmount)}
+                  </p>
                   <a
                     href={`/api/referral-achievements/${row.id}/download`}
                     className="mt-2 inline-block text-xs font-semibold text-blue-700 hover:underline"

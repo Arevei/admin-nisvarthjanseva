@@ -4,8 +4,22 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RichTextEditor } from "@/components/admin/rich-text-editor";
 import { CloudinaryUpload } from "@/components/admin/cloudinary-upload";
+import { EnquiryManagementPanel, type EnquiryItem } from "@/components/admin/enquiry-management-panel";
+import { ReceiptDashboardPanel, type DonationReceiptItem, type EventReceiptItem, type MembershipReceiptItem } from "@/components/admin/receipt-dashboard-panel";
+import { ReferralTrackingPanel, type ReferralMemberRow } from "@/components/admin/referral-tracking-panel";
 
-type Tab = "members" | "donations" | "analytics" | "news" | "campaigns" | "gallery" | "visitorCertificates";
+type Tab =
+  | "home"
+  | "members"
+  | "donations"
+  | "analytics"
+  | "referrals"
+  | "receipts"
+  | "enquiries"
+  | "news"
+  | "campaigns"
+  | "gallery"
+  | "visitorCertificates";
 
 type MemberItem = {
   id: number;
@@ -166,6 +180,21 @@ function shortDate(date: string) {
   });
 }
 
+function nextBirthday(dateOfBirth: string | null) {
+  if (!dateOfBirth) return null;
+  const birthDate = new Date(dateOfBirth);
+  if (Number.isNaN(birthDate.getTime())) return null;
+
+  const today = new Date();
+  const next = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+  if (next < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+    next.setFullYear(today.getFullYear() + 1);
+  }
+  const daysUntil = Math.ceil((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  return { date: next, daysUntil };
+}
+
 export function DashboardPanel({
   email,
   initialNews,
@@ -174,6 +203,11 @@ export function DashboardPanel({
   initialDonations,
   initialGallery,
   initialVisitorCertificates,
+  initialReferralRows,
+  initialMembershipReceipts,
+  initialDonationReceipts,
+  initialEventReceipts,
+  initialEnquiries,
 }: {
   email: string;
   initialNews: NewsItem[];
@@ -182,10 +216,15 @@ export function DashboardPanel({
   initialDonations: DonationItem[];
   initialGallery: GalleryItem[];
   initialVisitorCertificates: VisitorCertificateItem[];
+  initialReferralRows: ReferralMemberRow[];
+  initialMembershipReceipts: MembershipReceiptItem[];
+  initialDonationReceipts: DonationReceiptItem[];
+  initialEventReceipts: EventReceiptItem[];
+  initialEnquiries: EnquiryItem[];
 }) {
   const router = useRouter();
   const publicSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-  const [tab, setTab] = useState<Tab>("members");
+  const [tab, setTab] = useState<Tab>("home");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [members, setMembers] = useState<MemberItem[]>(initialMembers);
@@ -298,6 +337,52 @@ export function DashboardPanel({
       campaignTotals: campaignTotals.sort((a, b) => b.raisedAmount - a.raisedAmount),
     };
   }, [campaigns, donations, paidDonations]);
+  const upcomingBirthdays = useMemo(
+    () =>
+      members
+        .map((member) => {
+          const birthday = nextBirthday(member.dateOfBirth);
+          return birthday ? { ...member, birthdayDate: birthday.date, daysUntilBirthday: birthday.daysUntil } : null;
+        })
+        .filter((member): member is MemberItem & { birthdayDate: Date; daysUntilBirthday: number } => Boolean(member))
+        .sort((a, b) => a.daysUntilBirthday - b.daysUntilBirthday)
+        .slice(0, 8),
+    [members],
+  );
+  const monthlyDonationBars = useMemo(() => {
+    const now = new Date();
+    const months = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+      return {
+        key: `${date.getFullYear()}-${date.getMonth()}`,
+        label: date.toLocaleDateString("en-IN", { month: "short" }),
+        total: 0,
+      };
+    });
+
+    paidDonations.forEach((donation) => {
+      const date = new Date(donation.paidAt || donation.createdAt);
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const month = months.find((item) => item.key === key);
+      if (month) month.total += donation.amount;
+    });
+
+    const max = Math.max(...months.map((month) => month.total), 1);
+    return months.map((month) => ({ ...month, height: Math.max(8, Math.round((month.total / max) * 100)) }));
+  }, [paidDonations]);
+  const tabTitle = {
+    home: "Home Dashboard",
+    members: "Membership Management",
+    donations: "Donation Management",
+    analytics: "Analytics",
+    referrals: "Referral Tracking",
+    receipts: "Receipt Dashboard",
+    enquiries: "Enquiry Management",
+    news: "News Management",
+    campaigns: "Campaign Management",
+    gallery: "Activity Posts",
+    visitorCertificates: "Visitor Certificates",
+  }[tab];
 
   const refreshAll = async () => {
     setError("");
@@ -741,120 +826,165 @@ export function DashboardPanel({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-3xl border border-rose-200 bg-gradient-to-r from-rose-700 via-rose-700 to-orange-700 p-6 text-white shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
-              Complete Admin Control
-            </p>
-            <h1 className="mt-3 text-3xl font-bold">Nisvarthjan Command Center</h1>
-            <p className="mt-1 text-sm text-rose-100">Logged in as {email}</p>
+    <div className="grid min-h-screen gap-6 lg:grid-cols-[280px_1fr]">
+      <aside className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:overflow-y-auto">
+        <div className="rounded-2xl bg-rose-700 p-4 text-white">
+          <p className="text-xs font-semibold uppercase tracking-widest text-rose-100">Admin Panel</p>
+          <h1 className="mt-2 text-xl font-bold">Nisvarthjan</h1>
+          <p className="mt-1 truncate text-xs text-rose-100">{email}</p>
+        </div>
+
+        <nav className="mt-4 space-y-2">
+          <details open className="rounded-xl border border-zinc-200 bg-zinc-50 p-2">
+            <summary className="cursor-pointer px-2 py-1 text-xs font-bold uppercase tracking-wide text-zinc-500">Overview</summary>
+            <div className="mt-2 grid gap-1">
+              {(["home", "analytics"] as Tab[]).map((item) => (
+                <button key={item} type="button" onClick={() => setTab(item)} className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${tab === item ? "bg-rose-700 text-white" : "text-zinc-700 hover:bg-white"}`}>
+                  {item === "home" ? "Dashboard Home" : "Analytics"}
+                </button>
+              ))}
+            </div>
+          </details>
+
+          <details open className="rounded-xl border border-zinc-200 bg-zinc-50 p-2">
+            <summary className="cursor-pointer px-2 py-1 text-xs font-bold uppercase tracking-wide text-zinc-500">People & Money</summary>
+            <div className="mt-2 grid gap-1">
+              {(["members", "donations", "referrals", "receipts", "visitorCertificates"] as Tab[]).map((item) => (
+                <button key={item} type="button" onClick={() => setTab(item)} className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${tab === item ? "bg-rose-700 text-white" : "text-zinc-700 hover:bg-white"}`}>
+                  {item === "visitorCertificates"
+                    ? "Visitor Certificates"
+                    : item === "referrals"
+                      ? "Referral Tracking"
+                      : item === "receipts"
+                        ? "Receipt Dashboard"
+                        : item.charAt(0).toUpperCase() + item.slice(1)}
+                </button>
+              ))}
+            </div>
+          </details>
+
+          <details open className="rounded-xl border border-zinc-200 bg-zinc-50 p-2">
+            <summary className="cursor-pointer px-2 py-1 text-xs font-bold uppercase tracking-wide text-zinc-500">Content</summary>
+            <div className="mt-2 grid gap-1">
+              {(["campaigns", "news", "gallery", "enquiries"] as Tab[]).map((item) => (
+                <button key={item} type="button" onClick={() => setTab(item)} className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${tab === item ? "bg-rose-700 text-white" : "text-zinc-700 hover:bg-white"}`}>
+                  {item === "gallery" ? "Activity Posts" : item === "enquiries" ? "Enquiries" : item.charAt(0).toUpperCase() + item.slice(1)}
+                </button>
+              ))}
+            </div>
+          </details>
+        </nav>
+
+        <button type="button" onClick={logout} className="mt-4 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">
+          Logout
+        </button>
+      </aside>
+
+      <section className="space-y-6">
+        <div className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-rose-700">Command Center</p>
+              <h2 className="mt-1 text-2xl font-bold text-zinc-950">{tabTitle}</h2>
+            </div>
+            <button type="button" onClick={refreshQueue} className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-200">
+              Refresh
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={logout}
-            className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
-          >
-            Logout
-          </button>
-          <a
-            href="/referrals"
-            className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
-          >
-            Referral Tracking
-          </a>
-          <a
-            href="/receipts"
-            className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
-          >
-            Receipt Dashboard
-          </a>
-          <a
-            href="/enquiries"
-            className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
-          >
-            Enquiries
-          </a>
         </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-5">
-        <div className="rounded-xl border border-zinc-200 bg-white p-4">
-          <p className="text-xs uppercase tracking-wide text-zinc-500">Pending Reviews</p>
-          <p className="mt-1 text-2xl font-bold text-zinc-900">{pendingMembers.length}</p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-4">
-          <p className="text-xs uppercase tracking-wide text-zinc-500">Awaiting Payment</p>
-          <p className="mt-1 text-2xl font-bold text-zinc-900">{paymentPendingMembers.length}</p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-4">
-          <p className="text-xs uppercase tracking-wide text-zinc-500">Active Members</p>
-          <p className="mt-1 text-2xl font-bold text-zinc-900">{activeMembers.length}</p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-4">
-          <p className="text-xs uppercase tracking-wide text-zinc-500">Live Campaigns</p>
-          <p className="mt-1 text-2xl font-bold text-zinc-900">{campaigns.filter((c) => c.isActive).length}</p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-4">
-          <p className="text-xs uppercase tracking-wide text-zinc-500">Donation Amount</p>
-          <p className="mt-1 text-2xl font-bold text-zinc-900">{money(totalDonationAmount)}</p>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className={`rounded-md px-4 py-2 text-sm font-semibold ${tab === "members" ? "bg-rose-700 text-white" : "bg-zinc-100 text-zinc-700"}`}
-          onClick={() => setTab("members")}
-        >
-          Members
-        </button>
-        <button
-          type="button"
-          className={`rounded-md px-4 py-2 text-sm font-semibold ${tab === "donations" ? "bg-rose-700 text-white" : "bg-zinc-100 text-zinc-700"}`}
-          onClick={() => setTab("donations")}
-        >
-          Donations
-        </button>
-        <button
-          type="button"
-          className={`rounded-md px-4 py-2 text-sm font-semibold ${tab === "analytics" ? "bg-rose-700 text-white" : "bg-zinc-100 text-zinc-700"}`}
-          onClick={() => setTab("analytics")}
-        >
-          Analytics
-        </button>
-        <button
-          type="button"
-          className={`rounded-md px-4 py-2 text-sm font-semibold ${tab === "news" ? "bg-rose-700 text-white" : "bg-zinc-100 text-zinc-700"}`}
-          onClick={() => setTab("news")}
-        >
-          News
-        </button>
-        <button
-          type="button"
-          className={`rounded-md px-4 py-2 text-sm font-semibold ${tab === "campaigns" ? "bg-rose-700 text-white" : "bg-zinc-100 text-zinc-700"}`}
-          onClick={() => setTab("campaigns")}
-        >
-          Campaigns
-        </button>
-        <button
-          type="button"
-          className={`rounded-md px-4 py-2 text-sm font-semibold ${tab === "gallery" ? "bg-rose-700 text-white" : "bg-zinc-100 text-zinc-700"}`}
-          onClick={() => setTab("gallery")}
-        >
-          Activity Post
-        </button>
-        <button
-          type="button"
-          className={`rounded-md px-4 py-2 text-sm font-semibold ${tab === "visitorCertificates" ? "bg-rose-700 text-white" : "bg-zinc-100 text-zinc-700"}`}
-          onClick={() => setTab("visitorCertificates")}
-        >
-          Visitor Certificates
-        </button>
-      </div>
 
       {error && <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+      {tab === "home" && (
+        <div className="space-y-6">
+          <div className="grid gap-3 md:grid-cols-5">
+            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Pending Reviews</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">{pendingMembers.length}</p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Awaiting Payment</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">{paymentPendingMembers.length}</p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Active Members</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">{activeMembers.length}</p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Live Campaigns</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">{campaigns.filter((c) => c.isActive).length}</p>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Donation Amount</p>
+              <p className="mt-1 text-2xl font-bold text-zinc-900">{money(totalDonationAmount)}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-900">Donation Trend</h3>
+                  <p className="mt-1 text-sm text-zinc-500">Last 6 months paid donation volume</p>
+                </div>
+                <p className="text-sm font-semibold text-rose-700">{money(totalDonationAmount)}</p>
+              </div>
+              <div className="mt-6 flex h-56 items-end gap-4 rounded-xl bg-zinc-50 p-4">
+                {monthlyDonationBars.map((month) => (
+                  <div key={month.key} className="flex flex-1 flex-col items-center justify-end gap-2">
+                    <div className="flex w-full max-w-12 items-end rounded-t-lg bg-rose-100">
+                      <div className="w-full rounded-t-lg bg-rose-700" style={{ height: `${month.height}%` }} />
+                    </div>
+                    <p className="text-xs font-semibold text-zinc-600">{month.label}</p>
+                    <p className="text-[11px] text-zinc-500">{money(month.total)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+              <h3 className="text-base font-bold text-zinc-900">Upcoming Birthdays</h3>
+              <p className="mt-1 text-sm text-zinc-500">Nearest member birthdays from today</p>
+              <div className="mt-4 space-y-3">
+                {upcomingBirthdays.map((member) => (
+                  <div key={member.id} className="flex items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                    <div>
+                      <p className="font-semibold text-zinc-900">{member.name}</p>
+                      <p className="text-xs text-zinc-500">{member.membershipId} | {member.email}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-rose-700">
+                        {member.daysUntilBirthday === 0 ? "Today" : `${member.daysUntilBirthday} days`}
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        {member.birthdayDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {upcomingBirthdays.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500">
+                    No member birthdays available.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            {donationAnalytics.campaignTotals.slice(0, 3).map((campaign) => (
+              <div key={campaign.id} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+                <p className="text-xs uppercase tracking-wide text-zinc-500">{campaign.category}</p>
+                <h3 className="mt-1 truncate font-bold text-zinc-900">{campaign.title}</h3>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-200">
+                  <div className="h-full rounded-full bg-rose-700" style={{ width: `${campaign.progress}%` }} />
+                </div>
+                <p className="mt-2 text-sm font-semibold text-zinc-700">{campaign.progress}% funded</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {tab === "members" && (
         <div className="space-y-4">
@@ -1281,6 +1411,23 @@ export function DashboardPanel({
             </div>
           </div>
         </div>
+      )}
+
+      {tab === "referrals" && (
+        <ReferralTrackingPanel initialRows={initialReferralRows} embedded />
+      )}
+
+      {tab === "receipts" && (
+        <ReceiptDashboardPanel
+          initialMembershipReceipts={initialMembershipReceipts}
+          initialDonationReceipts={initialDonationReceipts}
+          initialEventReceipts={initialEventReceipts}
+          embedded
+        />
+      )}
+
+      {tab === "enquiries" && (
+        <EnquiryManagementPanel initialEnquiries={initialEnquiries} embedded />
       )}
 
       {tab === "news" && (
@@ -1730,6 +1877,7 @@ export function DashboardPanel({
           </div>
         </div>
       )}
+      </section>
     </div>
   );
 }

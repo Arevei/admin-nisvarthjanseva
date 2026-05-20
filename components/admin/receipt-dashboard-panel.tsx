@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 
-type MembershipReceiptItem = {
+export type MembershipReceiptItem = {
   id: number;
   memberName: string;
   memberEmail: string;
@@ -16,7 +16,7 @@ type MembershipReceiptItem = {
   paidAt: string;
 };
 
-type DonationReceiptItem = {
+export type DonationReceiptItem = {
   id: number;
   donorName: string;
   donorEmail: string;
@@ -28,7 +28,7 @@ type DonationReceiptItem = {
   paidAt: string;
 };
 
-type EventReceiptItem = {
+export type EventReceiptItem = {
   id: number;
   receiptNumber: string;
   eventName: string;
@@ -74,10 +74,12 @@ export function ReceiptDashboardPanel({
   initialMembershipReceipts,
   initialDonationReceipts,
   initialEventReceipts,
+  embedded = false,
 }: {
   initialMembershipReceipts: MembershipReceiptItem[];
   initialDonationReceipts: DonationReceiptItem[];
   initialEventReceipts: EventReceiptItem[];
+  embedded?: boolean;
 }) {
   const [tab, setTab] = useState<ReceiptTab>("all");
   const [eventReceipts, setEventReceipts] = useState<EventReceiptItem[]>(initialEventReceipts);
@@ -166,33 +168,46 @@ export function ReceiptDashboardPanel({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-rose-700 p-6 text-white shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
-              Receipt Management
-            </p>
-            <h1 className="mt-3 text-3xl font-bold">Receipt Dashboard</h1>
-            <p className="mt-1 text-sm text-rose-100">
-              View and manage membership, donation, event registration, and cash donation receipts.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <a
-              href="/api/reports/all/download"
-              className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
-            >
-              Download All Reports PDF
-            </a>
-            <Link
-              href="/dashboard"
-              className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
-            >
-              Back to Dashboard
-            </Link>
+      {!embedded && (
+        <div className="rounded-2xl bg-rose-700 p-6 text-white shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
+                Receipt Management
+              </p>
+              <h1 className="mt-3 text-3xl font-bold">Receipt Dashboard</h1>
+              <p className="mt-1 text-sm text-rose-100">
+                View and manage membership, donation, event registration, and cash donation receipts.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href="/api/reports/all/download"
+                className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
+              >
+                Download All Reports PDF
+              </a>
+              <Link
+                href="/dashboard"
+                className="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
+              >
+                Back to Dashboard
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {embedded && (
+        <div className="flex justify-end">
+          <a
+            href="/api/reports/all/download"
+            className="rounded-md border border-zinc-300 bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-200"
+          >
+            Download All Reports PDF
+          </a>
+        </div>
+      )}
 
       <div className="grid gap-3 md:grid-cols-5">
         <div className="rounded-xl border border-zinc-200 bg-white p-4">

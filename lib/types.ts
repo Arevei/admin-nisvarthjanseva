@@ -71,7 +71,11 @@ export type ReferralAchievementTier = "silver" | "gold" | "platinum" | "diamond"
 export interface ReferralAchievement {
   tier: ReferralAchievementTier;
   certificateNumber: string;
+  membershipReferralCount?: number;
+  donationReferralCount?: number;
   donationAmount: number;
+  requiredMembershipReferrals?: number;
+  requiredDonationReferrals?: number;
   thresholdAmount: number;
   issuedAt: Date;
   updatedAt?: Date;

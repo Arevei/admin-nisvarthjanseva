@@ -16,14 +16,62 @@ export type ReferralAchievementMember = {
 export const referralAchievementTiers: Array<{
   tier: ReferralAchievementTier;
   label: string;
+  membershipReferralCount: number;
+  donationReferralCount: number;
   thresholdAmount: number;
   color: [number, number, number];
 }> = [
-  { tier: "silver", label: "Silver", thresholdAmount: 10000, color: [120, 125, 134] },
-  { tier: "gold", label: "Gold", thresholdAmount: 25000, color: [180, 129, 19] },
-  { tier: "platinum", label: "Platinum", thresholdAmount: 50000, color: [92, 116, 138] },
-  { tier: "diamond", label: "Diamond", thresholdAmount: 100000, color: [16, 119, 145] },
+  {
+    tier: "silver",
+    label: "Silver",
+    membershipReferralCount: 2,
+    donationReferralCount: 1,
+    thresholdAmount: 10000,
+    color: [120, 125, 134],
+  },
+  {
+    tier: "gold",
+    label: "Gold",
+    membershipReferralCount: 5,
+    donationReferralCount: 3,
+    thresholdAmount: 25000,
+    color: [180, 129, 19],
+  },
+  {
+    tier: "platinum",
+    label: "Platinum",
+    membershipReferralCount: 10,
+    donationReferralCount: 5,
+    thresholdAmount: 50000,
+    color: [92, 116, 138],
+  },
+  {
+    tier: "diamond",
+    label: "Diamond",
+    membershipReferralCount: 20,
+    donationReferralCount: 10,
+    thresholdAmount: 100000,
+    color: [16, 119, 145],
+  },
 ];
+
+export type ReferralAchievementStats = {
+  membershipReferralCount: number;
+  donationReferralCount: number;
+  donationAmount: number;
+};
+
+export function hasReferralAchievementTier(stats: ReferralAchievementStats, tier: (typeof referralAchievementTiers)[number]) {
+  return (
+    stats.membershipReferralCount >= tier.membershipReferralCount &&
+    stats.donationReferralCount >= tier.donationReferralCount &&
+    stats.donationAmount >= tier.thresholdAmount
+  );
+}
+
+export function getReferralAchievementTier(stats: ReferralAchievementStats) {
+  return [...referralAchievementTiers].reverse().find((tier) => hasReferralAchievementTier(stats, tier)) ?? null;
+}
 
 export function getReferralAchievementTierConfig(tier: ReferralAchievementTier) {
   return referralAchievementTiers.find((item) => item.tier === tier) ?? referralAchievementTiers[0];
@@ -66,13 +114,13 @@ function getPngDimensions(buffer: Buffer) {
   };
 }
 
-function getLogo() {
-  const logoPath = path.join(process.cwd(), "public", "brand", "logo-stacked.png");
-  const logoBuffer = readFileSync(logoPath);
+function getBadgeImage(tier: ReferralAchievementTier) {
+  const badgePath = path.join(process.cwd(), "public", "achievement-badges", `${tier}.png`);
+  const badgeBuffer = readFileSync(badgePath);
 
   return {
-    dataUrl: `data:image/png;base64,${logoBuffer.toString("base64")}`,
-    ...getPngDimensions(logoBuffer),
+    dataUrl: `data:image/png;base64,${badgeBuffer.toString("base64")}`,
+    ...getPngDimensions(badgeBuffer),
   };
 }
 
@@ -111,10 +159,10 @@ export async function generateReferralAchievementCertificatePdf(
   doc.setLineWidth(0.35);
   doc.rect(19, 19, 259, 172);
 
-  const logo = getLogo();
-  const logoHeight = 23;
-  const logoWidth = logoHeight * (logo.width / logo.height);
-  doc.addImage(logo.dataUrl, "PNG", (297 - logoWidth) / 2, 23, logoWidth, logoHeight);
+  const badge = getBadgeImage(achievement.tier);
+  const badgeSize = 56;
+  const badgeWidth = badgeSize * (badge.width / badge.height);
+  doc.addImage(badge.dataUrl, "PNG", (297 - badgeWidth) / 2, 22, badgeWidth, badgeSize);
 
   doc.addImage(qrDataUrl, "PNG", 246, 24, 24, 24);
   doc.setFont("helvetica", "bold");
@@ -122,33 +170,28 @@ export async function generateReferralAchievementCertificatePdf(
   doc.setTextColor(r, g, b);
   doc.text("SCAN TO VERIFY", 258, 53, { align: "center" });
 
-  doc.setFontSize(17);
-  doc.text("REFERRAL ACHIEVEMENT CERTIFICATE", 148.5, 62, { align: "center" });
-
-  doc.setFillColor(r, g, b);
-  doc.circle(148.5, 82, 17, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(12);
-  doc.text(tierConfig.label.toUpperCase(), 148.5, 80, { align: "center" });
-  doc.setFontSize(8);
-  doc.text("BADGE", 148.5, 88, { align: "center" });
+  doc.setFontSize(20);
+  doc.text("ACHIEVEMENT CERTIFICATE", 148.5, 91, { align: "center" });
+  doc.setDrawColor(r, g, b);
+  doc.line(91, 98, 206, 98);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(12);
   doc.setTextColor(89, 78, 73);
-  doc.text("This certificate is proudly awarded to", 148.5, 110, { align: "center" });
+  doc.text("This certificate is proudly awarded to", 148.5, 113, { align: "center" });
 
   doc.setFont("times", "bolditalic");
   doc.setTextColor(24, 24, 27);
-  addCenteredFitText(doc, safeText(member.name).toUpperCase(), 126, 28, 17, 205);
+  addCenteredFitText(doc, safeText(member.name).toUpperCase(), 129, 27, 17, 205);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(12);
   doc.setTextColor(89, 78, 73);
+  doc.text("in recognition of outstanding contribution and service.", 148.5, 143, { align: "center" });
   doc.text(
-    `for collecting ${formatAmount(achievement.donationAmount)} through donation referrals.`,
+    `Donation collection credited: ${formatAmount(achievement.donationAmount)}.`,
     148.5,
-    141,
+    153,
     { align: "center" },
   );
 
@@ -162,7 +205,7 @@ export async function generateReferralAchievementCertificatePdf(
   doc.setFontSize(10);
   rows.forEach(([label, value], index) => {
     const x = index % 2 === 0 ? 42 : 166;
-    const y = index < 2 ? 162 : 174;
+    const y = index < 2 ? 166 : 177;
     doc.setFont("helvetica", "bold");
     doc.setTextColor(r, g, b);
     doc.text(label, x, y);
@@ -172,11 +215,13 @@ export async function generateReferralAchievementCertificatePdf(
   });
 
   doc.setDrawColor(35, 35, 35);
-  doc.line(205, 184, 263, 184);
+  doc.line(34, 188, 92, 188);
+  doc.line(205, 188, 263, 188);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(r, g, b);
-  doc.text("Authorized Signature", 234, 190, { align: "center" });
+  doc.text("Recipient Signature", 63, 194, { align: "center" });
+  doc.text("Authorized Signature", 234, 194, { align: "center" });
 
   return doc.output("arraybuffer");
 }
