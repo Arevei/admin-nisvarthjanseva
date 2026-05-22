@@ -22,6 +22,10 @@ function membershipReceiptAvailable(member: MemberDoc) {
   return member.payment?.status === "paid" || member.status === "active";
 }
 
+function normalizeEmail(value?: string | null) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
 function serializeReferralAchievement(member: MemberDoc) {
   if (!member.referralAchievement) return null;
 
@@ -68,6 +72,15 @@ export default async function DashboardPage() {
   const eventReceiptRows = await db.collection<EventRegistrationReceiptDoc>("eventRegistrationReceipts").find({}).sort({ createdAt: -1 }).toArray();
   const enquiryRows = await db.collection<EnquiryDoc>("contacts").find({}).sort({ createdAt: -1 }).toArray();
   const campaignTitleById = new Map(campaignRows.map((campaign) => [campaign.id, campaign.title]));
+  const memberDonationStats = new Map<string, { count: number; amount: number }>();
+  donationRows.filter(paidDonation).forEach((donation) => {
+    const email = normalizeEmail(donation.donorEmail);
+    if (!email) return;
+    const existing = memberDonationStats.get(email) ?? { count: 0, amount: 0 };
+    existing.count += 1;
+    existing.amount += donation.amount;
+    memberDonationStats.set(email, existing);
+  });
 
   const initialNews = newsRows.map((item) => ({
     id: item.id,
@@ -97,27 +110,32 @@ export default async function DashboardPage() {
     createdAt: item.createdAt.toISOString(),
   }));
 
-  const initialMembers = memberRows.map((item) => ({
-    id: item.id,
-    name: item.name,
-    email: item.email,
-    phone: item.phone,
-    dateOfBirth: item.dateOfBirth ?? null,
-    address: item.address,
-    city: item.city,
-    state: item.state,
-    membershipType: item.membershipType,
-    membershipId: item.membershipId,
-    status: item.status,
-    certificateNumber: item.certificateNumber,
-    referral: item.referral
-      ? {
-          ...item.referral,
-          referredAt: item.referral.referredAt.toISOString(),
-        }
-      : null,
-    joinedAt: item.joinedAt.toISOString(),
-  }));
+  const initialMembers = memberRows.map((item) => {
+    const donationStats = memberDonationStats.get(normalizeEmail(item.email)) ?? { count: 0, amount: 0 };
+    return {
+      id: item.id,
+      name: item.name,
+      email: item.email,
+      phone: item.phone,
+      dateOfBirth: item.dateOfBirth ?? null,
+      address: item.address,
+      city: item.city,
+      state: item.state,
+      membershipType: item.membershipType,
+      membershipId: item.membershipId,
+      status: item.status,
+      certificateNumber: item.certificateNumber,
+      referral: item.referral
+        ? {
+            ...item.referral,
+            referredAt: item.referral.referredAt.toISOString(),
+          }
+        : null,
+      donationAmount: donationStats.amount,
+      donationCount: donationStats.count,
+      joinedAt: item.joinedAt.toISOString(),
+    };
+  });
 
   const initialDonations = donationRows.map((item) => ({
     id: item.id,

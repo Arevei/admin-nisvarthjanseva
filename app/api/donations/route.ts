@@ -66,15 +66,28 @@ export async function POST(req: NextRequest) {
     campaignId?: number | null;
     purpose?: string;
     referralCode?: string;
+    memberId?: number | string;
     paymentMode?: "cash" | "upi" | "bank_transfer" | "other" | "manual";
     paymentReference?: string;
   };
   const amount = Number(body.amount);
-  if (!amount || amount <= 0 || !body.donorName || !body.donorEmail || !body.purpose) {
-    return NextResponse.json({ error: "amount, donorName, donorEmail and purpose are required" }, { status: 400 });
+  if (!amount || amount <= 0 || !body.purpose) {
+    return NextResponse.json({ error: "amount and purpose are required" }, { status: 400 });
   }
 
   const db = await getDb();
+  const selectedMemberId = Number(body.memberId);
+  const selectedMember = selectedMemberId
+    ? await db.collection<MemberDoc>("members").findOne({ id: selectedMemberId })
+    : null;
+  const donorName = selectedMember?.name || String(body.donorName ?? "").trim();
+  const donorEmail = selectedMember?.email || String(body.donorEmail ?? "").trim();
+  const donorPhone = selectedMember?.phone || String(body.donorPhone ?? "").trim();
+
+  if (!donorName || !donorEmail) {
+    return NextResponse.json({ error: "donorName and donorEmail are required" }, { status: 400 });
+  }
+
   const referralCode = String(body.referralCode ?? "").trim().toUpperCase();
   const referringMember = referralCode
     ? await db.collection<MemberDoc>("members").findOne({
@@ -84,9 +97,9 @@ export async function POST(req: NextRequest) {
   const donation: DonationDoc = {
     id: await nextSequence("donations"),
     amount,
-    donorName: body.donorName,
-    donorEmail: body.donorEmail.trim().toLowerCase(),
-    donorPhone: body.donorPhone || null,
+    donorName,
+    donorEmail: donorEmail.trim().toLowerCase(),
+    donorPhone: donorPhone || null,
     campaignId: body.campaignId ? Number(body.campaignId) : null,
     purpose: body.purpose,
     receiptNumber: generateReceiptNumber(),

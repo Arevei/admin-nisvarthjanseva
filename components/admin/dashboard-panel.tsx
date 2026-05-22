@@ -35,6 +35,8 @@ type MemberItem = {
   status: string;
   certificateNumber: string | null;
   referral: ReferralInfo | null;
+  donationAmount: number;
+  donationCount: number;
   joinedAt: string;
 };
 
@@ -278,6 +280,7 @@ export function DashboardPanel({
     paymentMode: "cash" as (typeof donationPaymentModes)[number],
     paymentReference: "",
     referralCode: "",
+    memberId: "",
   });
 
   const [visitorCertificateForm, setVisitorCertificateForm] = useState({
@@ -689,7 +692,19 @@ export function DashboardPanel({
       paymentMode: "cash",
       paymentReference: "",
       referralCode: "",
+      memberId: "",
     });
+  };
+
+  const applyDonationMember = (memberId: string) => {
+    const member = members.find((item) => String(item.id) === memberId);
+    setDonationForm((previous) => ({
+      ...previous,
+      memberId,
+      donorName: member?.name ?? "",
+      donorEmail: member?.email ?? "",
+      donorPhone: member?.phone ?? "",
+    }));
   };
 
   const submitManualDonation = async () => {
@@ -715,6 +730,7 @@ export function DashboardPanel({
           paymentMode: donationForm.paymentMode,
           paymentReference: donationForm.paymentReference,
           referralCode: donationForm.referralCode || undefined,
+          memberId: donationForm.memberId || undefined,
         }),
       });
       const payload = (await response.json()) as { error?: string; emailSent?: boolean };
@@ -1026,6 +1042,9 @@ export function DashboardPanel({
                       DOB: {member.dateOfBirth ? new Date(member.dateOfBirth).toLocaleDateString("en-IN") : "Not provided"}
                       {member.referral ? ` | Referred by ${member.referral.memberName} (${member.referral.membershipId})` : " | Direct registration"}
                     </p>
+                    <p className="mt-1 text-xs font-semibold text-zinc-700">
+                      Donations by member: {member.donationCount} | {money(member.donationAmount)}
+                    </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {member.status === "pending" && (
@@ -1107,6 +1126,15 @@ export function DashboardPanel({
               Create QR-coded receipts for cash, UPI, bank transfer, or other offline donations. The PDF receipt is emailed automatically.
             </p>
             <div className="mt-4 grid gap-4 md:grid-cols-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">Existing Member</label>
+                <select value={donationForm.memberId} onChange={(e) => applyDonationMember(e.target.value)} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm">
+                  <option value="">Non-member / manual entry</option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>{member.name} ({member.membershipId})</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">Amount *</label>
                 <input type="number" value={donationForm.amount} onChange={(e) => setDonationForm((p) => ({ ...p, amount: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
