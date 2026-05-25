@@ -17,6 +17,25 @@ function safeText(value: string | number | null | undefined) {
   return String(value);
 }
 
+const PURPOSE_LABELS = new Map([
+  ["\u0936\u093f\u0915\u094d\u0937\u093e \u0938\u0939\u093e\u092f\u0924\u093e", "Education Support"],
+  ["\u0938\u094d\u0935\u093e\u0938\u094d\u0925\u094d\u092f \u0938\u0947\u0935\u093e", "Health Services"],
+  [
+    "\u0917\u0930\u0940\u092c \u090f\u0935\u0902 \u091c\u0930\u0942\u0930\u0924\u092e\u0902\u0926 \u0938\u0939\u093e\u092f\u0924\u093e",
+    "Poor & Needy Support",
+  ],
+  ["\u092a\u0930\u094d\u092f\u093e\u0935\u0930\u0923 \u0905\u092d\u093f\u092f\u093e\u0928", "Environment Campaign"],
+  ["\u0906\u092a\u0926\u093e \u0930\u093e\u0939\u0924 \u0915\u093e\u0930\u094d\u092f", "Disaster Relief"],
+  ["\u0938\u093e\u092e\u093e\u0928\u094d\u092f \u0926\u093e\u0928", "General Donation"],
+]);
+
+function normalizeDonationPurpose(value: string) {
+  const text = safeText(value).trim();
+  const repairedText = Buffer.from(text, "latin1").toString("utf8");
+
+  return PURPOSE_LABELS.get(text) || PURPOSE_LABELS.get(repairedText) || text;
+}
+
 function formatDate(value: Date | string | undefined) {
   if (!value) return "Not available";
   return new Date(value).toLocaleDateString("en-IN", {
@@ -88,7 +107,7 @@ export async function generateDonationReceiptPdf(donation: DonationDoc, requestU
     ["Email", donation.donorEmail],
     ["Phone", safeText(donation.donorPhone)],
     ["Amount", `INR ${donation.amount.toLocaleString("en-IN")}`],
-    ["Purpose", donation.purpose],
+    ["Purpose", normalizeDonationPurpose(donation.purpose)],
     ["Payment Mode", paymentMode.replace(/[_-]+/g, " ").toUpperCase()],
     ["Payment Ref.", paymentReference],
     ["Paid On", formatDate(paidAt)],

@@ -160,7 +160,7 @@ export async function generateReferralAchievementCertificatePdf(
   doc.rect(19, 19, 259, 172);
 
   const badge = getBadgeImage(achievement.tier);
-  const badgeSize = 56;
+  const badgeSize = 50;
   const badgeWidth = badgeSize * (badge.width / badge.height);
   doc.addImage(badge.dataUrl, "PNG", (297 - badgeWidth) / 2, 22, badgeWidth, badgeSize);
 
@@ -171,27 +171,27 @@ export async function generateReferralAchievementCertificatePdf(
   doc.text("SCAN TO VERIFY", 258, 53, { align: "center" });
 
   doc.setFontSize(20);
-  doc.text("ACHIEVEMENT CERTIFICATE", 148.5, 91, { align: "center" });
+  doc.text("ACHIEVEMENT CERTIFICATE", 148.5, 86, { align: "center" });
   doc.setDrawColor(r, g, b);
-  doc.line(91, 98, 206, 98);
+  doc.line(91, 93, 206, 93);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(12);
   doc.setTextColor(89, 78, 73);
-  doc.text("This certificate is proudly awarded to", 148.5, 113, { align: "center" });
+  doc.text("This certificate is proudly awarded to", 148.5, 106, { align: "center" });
 
   doc.setFont("times", "bolditalic");
   doc.setTextColor(24, 24, 27);
-  addCenteredFitText(doc, safeText(member.name).toUpperCase(), 129, 27, 17, 205);
+  addCenteredFitText(doc, safeText(member.name).toUpperCase(), 121, 26, 17, 205);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(12);
   doc.setTextColor(89, 78, 73);
-  doc.text("in recognition of outstanding contribution and service.", 148.5, 143, { align: "center" });
+  doc.text("in recognition of outstanding contribution and service.", 148.5, 135, { align: "center" });
   doc.text(
-    `Donation collection credited: ${formatAmount(achievement.donationAmount)}.`,
+    `Referral donation amount credited: ${formatAmount(achievement.donationAmount)}.`,
     148.5,
-    153,
+    145,
     { align: "center" },
   );
 
@@ -205,7 +205,7 @@ export async function generateReferralAchievementCertificatePdf(
   doc.setFontSize(10);
   rows.forEach(([label, value], index) => {
     const x = index % 2 === 0 ? 42 : 166;
-    const y = index < 2 ? 166 : 177;
+    const y = index < 2 ? 158 : 168;
     doc.setFont("helvetica", "bold");
     doc.setTextColor(r, g, b);
     doc.text(label, x, y);
@@ -215,13 +215,13 @@ export async function generateReferralAchievementCertificatePdf(
   });
 
   doc.setDrawColor(35, 35, 35);
-  doc.line(34, 188, 92, 188);
-  doc.line(205, 188, 263, 188);
+  doc.line(34, 180, 92, 180);
+  doc.line(205, 180, 263, 180);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(r, g, b);
-  doc.text("Recipient Signature", 63, 194, { align: "center" });
-  doc.text("Authorized Signature", 234, 194, { align: "center" });
+  doc.text("Recipient Signature", 63, 186, { align: "center" });
+  doc.text("Authorized Signature", 234, 186, { align: "center" });
 
   return doc.output("arraybuffer");
 }
