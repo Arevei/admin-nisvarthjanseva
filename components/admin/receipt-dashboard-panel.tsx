@@ -28,33 +28,14 @@ export type DonationReceiptItem = {
   paidAt: string;
 };
 
-export type EventReceiptItem = {
-  id: number;
-  receiptNumber: string;
-  eventName: string;
-  attendeeName: string;
-  attendeeEmail: string;
-  attendeePhone: string | null;
-  amount: number;
-  status: "paid" | "cancelled" | "refunded";
-  paymentMode: string;
-  paymentReference: string | null;
-  paidAt: string;
-  notes: string | null;
-  createdAt: string;
-};
-
-type ReceiptTab = "all" | "membership" | "donation" | "event" | "cash";
+type ReceiptTab = "all" | "membership" | "donation" | "cash";
 
 const receiptTabs: Array<{ id: ReceiptTab; label: string }> = [
   { id: "all", label: "All Receipts" },
   { id: "membership", label: "Membership" },
   { id: "donation", label: "Donation" },
-  { id: "event", label: "Event Registration" },
   { id: "cash", label: "Cash Donation" },
 ];
-
-const paymentModes = ["cash", "upi", "bank_transfer", "other", "manual"] as const;
 
 function money(amount: number) {
   return `Rs ${amount.toLocaleString("en-IN")}`;
@@ -73,28 +54,13 @@ function shortDate(date: string) {
 export function ReceiptDashboardPanel({
   initialMembershipReceipts,
   initialDonationReceipts,
-  initialEventReceipts,
   embedded = false,
 }: {
   initialMembershipReceipts: MembershipReceiptItem[];
   initialDonationReceipts: DonationReceiptItem[];
-  initialEventReceipts: EventReceiptItem[];
   embedded?: boolean;
 }) {
   const [tab, setTab] = useState<ReceiptTab>("all");
-  const [eventReceipts, setEventReceipts] = useState<EventReceiptItem[]>(initialEventReceipts);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [eventForm, setEventForm] = useState({
-    eventName: "",
-    attendeeName: "",
-    attendeeEmail: "",
-    attendeePhone: "",
-    amount: "",
-    paymentMode: "cash" as (typeof paymentModes)[number],
-    paymentReference: "",
-    notes: "",
-  });
 
   const cashDonationReceipts = useMemo(
     () => initialDonationReceipts.filter((receipt) => receipt.paymentMode === "cash"),
@@ -104,66 +70,18 @@ export function ReceiptDashboardPanel({
   const totals = useMemo(() => {
     const membershipTotal = initialMembershipReceipts.reduce((total, receipt) => total + receipt.amount, 0);
     const donationTotal = initialDonationReceipts.reduce((total, receipt) => total + receipt.amount, 0);
-    const eventTotal = eventReceipts.reduce((total, receipt) => total + receipt.amount, 0);
     const cashTotal = cashDonationReceipts.reduce((total, receipt) => total + receipt.amount, 0);
 
     return {
-      count: initialMembershipReceipts.length + initialDonationReceipts.length + eventReceipts.length,
+      count: initialMembershipReceipts.length + initialDonationReceipts.length,
       membershipTotal,
       donationTotal,
-      eventTotal,
       cashTotal,
-      grandTotal: membershipTotal + donationTotal + eventTotal,
     };
-  }, [cashDonationReceipts, eventReceipts, initialDonationReceipts, initialMembershipReceipts]);
-
-  const resetEventForm = () => {
-    setEventForm({
-      eventName: "",
-      attendeeName: "",
-      attendeeEmail: "",
-      attendeePhone: "",
-      amount: "",
-      paymentMode: "cash",
-      paymentReference: "",
-      notes: "",
-    });
-  };
-
-  const createEventReceipt = async () => {
-    if (!eventForm.eventName.trim() || !eventForm.attendeeName.trim() || !eventForm.attendeeEmail.trim() || !eventForm.amount.trim()) {
-      setError("Event name, attendee name, attendee email and amount are required.");
-      return;
-    }
-
-    setBusy(true);
-    setError("");
-    try {
-      const response = await fetch("/api/event-registration-receipts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          ...eventForm,
-          amount: Number(eventForm.amount),
-        }),
-      });
-      const payload = (await response.json()) as EventReceiptItem & { error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error || "Failed to create event receipt");
-      }
-      setEventReceipts((current) => [payload, ...current]);
-      resetEventForm();
-    } catch (createError) {
-      setError(createError instanceof Error ? createError.message : "Failed to create event receipt");
-    } finally {
-      setBusy(false);
-    }
-  };
+  }, [cashDonationReceipts, initialDonationReceipts, initialMembershipReceipts]);
 
   const showMembership = tab === "all" || tab === "membership";
   const showDonation = tab === "all" || tab === "donation";
-  const showEvent = tab === "all" || tab === "event";
   const showCash = tab === "all" || tab === "cash";
 
   return (
@@ -177,7 +95,7 @@ export function ReceiptDashboardPanel({
               </p>
               <h1 className="mt-3 text-3xl font-bold">Receipt Dashboard</h1>
               <p className="mt-1 text-sm text-rose-100">
-                View and manage membership, donation, event registration, and cash donation receipts.
+                View and manage membership, donation, and cash donation receipts.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -209,7 +127,7 @@ export function ReceiptDashboardPanel({
         </div>
       )}
 
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-xl border border-zinc-200 bg-white p-4">
           <p className="text-xs uppercase tracking-wide text-zinc-500">All Receipts</p>
           <p className="mt-1 text-2xl font-bold text-zinc-900">{totals.count}</p>
@@ -221,10 +139,6 @@ export function ReceiptDashboardPanel({
         <div className="rounded-xl border border-zinc-200 bg-white p-4">
           <p className="text-xs uppercase tracking-wide text-zinc-500">Donations</p>
           <p className="mt-1 text-2xl font-bold text-zinc-900">{money(totals.donationTotal)}</p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-4">
-          <p className="text-xs uppercase tracking-wide text-zinc-500">Events</p>
-          <p className="mt-1 text-2xl font-bold text-zinc-900">{money(totals.eventTotal)}</p>
         </div>
         <div className="rounded-xl border border-zinc-200 bg-white p-4">
           <p className="text-xs uppercase tracking-wide text-zinc-500">Cash Donations</p>
@@ -246,55 +160,6 @@ export function ReceiptDashboardPanel({
           </button>
         ))}
       </div>
-
-      {error && <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-
-      {(tab === "all" || tab === "event") && (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-zinc-900">Create Event Registration Receipt</h2>
-          <div className="mt-4 grid gap-4 md:grid-cols-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">Event Name *</label>
-              <input value={eventForm.eventName} onChange={(event) => setEventForm((p) => ({ ...p, eventName: event.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">Attendee Name *</label>
-              <input value={eventForm.attendeeName} onChange={(event) => setEventForm((p) => ({ ...p, attendeeName: event.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">Attendee Email *</label>
-              <input type="email" value={eventForm.attendeeEmail} onChange={(event) => setEventForm((p) => ({ ...p, attendeeEmail: event.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">Phone</label>
-              <input value={eventForm.attendeePhone} onChange={(event) => setEventForm((p) => ({ ...p, attendeePhone: event.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">Amount *</label>
-              <input type="number" value={eventForm.amount} onChange={(event) => setEventForm((p) => ({ ...p, amount: event.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">Payment Mode</label>
-              <select value={eventForm.paymentMode} onChange={(event) => setEventForm((p) => ({ ...p, paymentMode: event.target.value as typeof eventForm.paymentMode }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm">
-                {paymentModes.map((mode) => (
-                  <option key={mode} value={mode}>{mode.replace(/_/g, " ")}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">Payment Reference</label>
-              <input value={eventForm.paymentReference} onChange={(event) => setEventForm((p) => ({ ...p, paymentReference: event.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700">Notes</label>
-              <input value={eventForm.notes} onChange={(event) => setEventForm((p) => ({ ...p, notes: event.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
-            </div>
-          </div>
-          <button type="button" disabled={busy} onClick={createEventReceipt} className="mt-4 rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-60">
-            {busy ? "Saving..." : "Generate Event Receipt"}
-          </button>
-        </div>
-      )}
 
       <div className="space-y-4">
         {showMembership && (
@@ -346,24 +211,6 @@ export function ReceiptDashboardPanel({
                 paidAt={receipt.paidAt}
                 paymentMode={receipt.paymentMode}
                 downloadHref={`/api/donations/${receipt.id}/receipt`}
-              />
-            ))}
-          </ReceiptSection>
-        )}
-
-        {showEvent && (
-          <ReceiptSection title="Event Registration Receipts" empty={!eventReceipts.length}>
-            {eventReceipts.map((receipt) => (
-              <ReceiptRow
-                key={`event-${receipt.id}`}
-                label={receipt.attendeeName}
-                sublabel={`${receipt.attendeeEmail} | ${receipt.eventName}`}
-                receiptNumber={receipt.receiptNumber}
-                amount={receipt.amount}
-                status={receipt.status}
-                paidAt={receipt.paidAt}
-                paymentMode={receipt.paymentMode}
-                downloadHref={`/api/event-registration-receipts/${receipt.id}/download`}
               />
             ))}
           </ReceiptSection>

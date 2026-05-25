@@ -7,7 +7,6 @@ import type {
   CampaignDoc,
   DonationDoc,
   EnquiryDoc,
-  EventRegistrationReceiptDoc,
   GalleryDoc,
   MemberDoc,
   NewsDoc,
@@ -69,7 +68,6 @@ export default async function DashboardPage() {
   const donationRows = await db.collection<DonationDoc>("donations").find({}).sort({ createdAt: -1 }).toArray();
   const galleryRows = await db.collection<GalleryDoc>("gallery").find({}).sort({ createdAt: -1 }).toArray();
   const visitorCertificateRows = await db.collection<VisitorCertificateDoc>("visitorCertificates").find({}).sort({ createdAt: -1 }).toArray();
-  const eventReceiptRows = await db.collection<EventRegistrationReceiptDoc>("eventRegistrationReceipts").find({}).sort({ createdAt: -1 }).toArray();
   const enquiryRows = await db.collection<EnquiryDoc>("contacts").find({}).sort({ createdAt: -1 }).toArray();
   const campaignTitleById = new Map(campaignRows.map((campaign) => [campaign.id, campaign.title]));
   const memberDonationStats = new Map<string, { count: number; amount: number }>();
@@ -252,22 +250,6 @@ export default async function DashboardPage() {
     };
   });
 
-  const initialEventReceipts = eventReceiptRows.map((receipt) => ({
-    id: receipt.id,
-    receiptNumber: receipt.receiptNumber,
-    eventName: receipt.eventName,
-    attendeeName: receipt.attendeeName,
-    attendeeEmail: receipt.attendeeEmail,
-    attendeePhone: receipt.attendeePhone,
-    amount: receipt.amount,
-    status: receipt.status,
-    paymentMode: receipt.payment.mode,
-    paymentReference: receipt.payment.reference ?? null,
-    paidAt: receipt.payment.paidAt.toISOString(),
-    notes: receipt.notes,
-    createdAt: receipt.createdAt.toISOString(),
-  }));
-
   const initialEnquiries = enquiryRows.map(serializeEnquiry);
 
   return (
@@ -284,7 +266,6 @@ export default async function DashboardPage() {
           initialReferralRows={initialReferralRows}
           initialMembershipReceipts={initialMembershipReceipts}
           initialDonationReceipts={initialDonationReceipts}
-          initialEventReceipts={initialEventReceipts}
           initialEnquiries={initialEnquiries}
         />
       </div>

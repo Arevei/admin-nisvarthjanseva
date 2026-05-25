@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import { RichTextEditor } from "@/components/admin/rich-text-editor";
 import { CloudinaryUpload } from "@/components/admin/cloudinary-upload";
 import { EnquiryManagementPanel, type EnquiryItem } from "@/components/admin/enquiry-management-panel";
-import { ReceiptDashboardPanel, type DonationReceiptItem, type EventReceiptItem, type MembershipReceiptItem } from "@/components/admin/receipt-dashboard-panel";
+import { ReceiptDashboardPanel, type DonationReceiptItem, type MembershipReceiptItem } from "@/components/admin/receipt-dashboard-panel";
 import { ReferralTrackingPanel, type ReferralMemberRow } from "@/components/admin/referral-tracking-panel";
 
 type Tab =
@@ -182,6 +182,10 @@ function shortDate(date: string) {
   });
 }
 
+function localDateKey(date: Date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
 function nextBirthday(dateOfBirth: string | null) {
   if (!dateOfBirth) return null;
   const birthDate = new Date(dateOfBirth);
@@ -208,7 +212,6 @@ export function DashboardPanel({
   initialReferralRows,
   initialMembershipReceipts,
   initialDonationReceipts,
-  initialEventReceipts,
   initialEnquiries,
 }: {
   email: string;
@@ -221,7 +224,6 @@ export function DashboardPanel({
   initialReferralRows: ReferralMemberRow[];
   initialMembershipReceipts: MembershipReceiptItem[];
   initialDonationReceipts: DonationReceiptItem[];
-  initialEventReceipts: EventReceiptItem[];
   initialEnquiries: EnquiryItem[];
 }) {
   const router = useRouter();
@@ -243,6 +245,10 @@ export function DashboardPanel({
   const [editingCampaignId, setEditingCampaignId] = useState<number | null>(null);
   const [editingGalleryId, setEditingGalleryId] = useState<number | null>(null);
   const [expandedDonationId, setExpandedDonationId] = useState<number | null>(null);
+  const [donationTrendMode, setDonationTrendMode] = useState<"daily" | "monthly">("daily");
+  const [useExistingDonationMember, setUseExistingDonationMember] = useState(false);
+  const [memberSearchInput, setMemberSearchInput] = useState("");
+  const [debouncedMemberSearch, setDebouncedMemberSearch] = useState("");
 
   const [newsForm, setNewsForm] = useState({
     title: "",
@@ -299,6 +305,11 @@ export function DashboardPanel({
     templateId: "classic" as VisitorCertificateItem["templateId"],
   });
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedMemberSearch(memberSearchInput.trim().toLowerCase()), 250);
+    return () => window.clearTimeout(timeout);
+  }, [memberSearchInput]);
+
   const pendingMembers = useMemo(
     () => members.filter((member) => member.status === "pending"),
     [members],
@@ -315,6 +326,16 @@ export function DashboardPanel({
     () => donations.filter((donation) => donation.paymentStatus === "paid" || !donation.paymentStatus),
     [donations],
   );
+  const memberSearchResults = useMemo(() => {
+    if (!useExistingDonationMember || !debouncedMemberSearch || donationForm.memberId) return [];
+
+    return members
+      .filter((member) => {
+        const searchable = `${member.name} ${member.email} ${member.phone} ${member.membershipId} ${member.id}`.toLowerCase();
+        return searchable.includes(debouncedMemberSearch);
+      })
+      .slice(0, 8);
+  }, [debouncedMemberSearch, donationForm.memberId, members, useExistingDonationMember]);
   const totalDonationAmount = useMemo(
     () => paidDonations.reduce((total, donation) => total + donation.amount, 0),
     [paidDonations],
@@ -353,31 +374,42 @@ export function DashboardPanel({
           return birthday ? { ...member, birthdayDate: birthday.date, daysUntilBirthday: birthday.daysUntil } : null;
         })
         .filter((member): member is MemberItem & { birthdayDate: Date; daysUntilBirthday: number } => Boolean(member))
+        .filter((member) => member.daysUntilBirthday <= 3)
         .sort((a, b) => a.daysUntilBirthday - b.daysUntilBirthday)
         .slice(0, 8),
     [members],
   );
-  const monthlyDonationBars = useMemo(() => {
+  const donationTrendBars = useMemo(() => {
     const now = new Date();
-    const months = Array.from({ length: 6 }, (_, index) => {
-      const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
-      return {
-        key: `${date.getFullYear()}-${date.getMonth()}`,
-        label: date.toLocaleDateString("en-IN", { month: "short" }),
-        total: 0,
-      };
-    });
+    const buckets =
+      donationTrendMode === "daily"
+        ? Array.from({ length: 14 }, (_, index) => {
+            const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (13 - index));
+            return {
+              key: localDateKey(date),
+              label: date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+              total: 0,
+            };
+          })
+        : Array.from({ length: 6 }, (_, index) => {
+            const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+            return {
+              key: `${date.getFullYear()}-${date.getMonth()}`,
+              label: date.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
+              total: 0,
+            };
+          });
 
     paidDonations.forEach((donation) => {
       const date = new Date(donation.paidAt || donation.createdAt);
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
-      const month = months.find((item) => item.key === key);
-      if (month) month.total += donation.amount;
+      const key = donationTrendMode === "daily" ? localDateKey(date) : `${date.getFullYear()}-${date.getMonth()}`;
+      const bucket = buckets.find((item) => item.key === key);
+      if (bucket) bucket.total += donation.amount;
     });
 
-    const max = Math.max(...months.map((month) => month.total), 1);
-    return months.map((month) => ({ ...month, height: Math.max(8, Math.round((month.total / max) * 100)) }));
-  }, [paidDonations]);
+    const max = Math.max(...buckets.map((bucket) => bucket.total), 1);
+    return buckets.map((bucket) => ({ ...bucket, height: bucket.total > 0 ? Math.max(8, Math.round((bucket.total / max) * 100)) : 0 }));
+  }, [donationTrendMode, paidDonations]);
   const tabTitle = {
     home: "Home Dashboard",
     members: "Membership Management",
@@ -800,6 +832,9 @@ export function DashboardPanel({
       referralCode: "",
       memberId: "",
     });
+    setUseExistingDonationMember(false);
+    setMemberSearchInput("");
+    setDebouncedMemberSearch("");
   };
 
   const applyDonationMember = (memberId: string) => {
@@ -811,6 +846,22 @@ export function DashboardPanel({
       donorEmail: member?.email ?? "",
       donorPhone: member?.phone ?? "",
     }));
+    if (member) {
+      setMemberSearchInput(`${member.name} (${member.membershipId})`);
+      setDebouncedMemberSearch("");
+    }
+  };
+
+  const clearDonationMember = () => {
+    setDonationForm((previous) => ({
+      ...previous,
+      memberId: "",
+      donorName: "",
+      donorEmail: "",
+      donorPhone: "",
+    }));
+    setMemberSearchInput("");
+    setDebouncedMemberSearch("");
   };
 
   const submitManualDonation = async () => {
@@ -850,6 +901,28 @@ export function DashboardPanel({
       await refreshAll();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Failed to record donation");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeDonation = async (id: number) => {
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/donations/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok && response.status !== 204) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error || "Failed to delete donation");
+      }
+
+      if (expandedDonationId === id) setExpandedDonationId(null);
+      await refreshAll();
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : "Failed to delete donation");
     } finally {
       setBusy(false);
     }
@@ -1047,18 +1120,36 @@ export function DashboardPanel({
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <h3 className="text-base font-bold text-zinc-900">Donation Trend</h3>
-                  <p className="mt-1 text-sm text-zinc-500">Last 6 months paid donation volume</p>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    {donationTrendMode === "daily" ? "Last 14 days paid donation volume" : "Last 6 months paid donation volume"}
+                  </p>
                 </div>
-                <p className="text-sm font-semibold text-rose-700">{money(totalDonationAmount)}</p>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-1">
+                    {(["daily", "monthly"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setDonationTrendMode(mode)}
+                        className={`rounded-md px-3 py-1 text-xs font-semibold ${
+                          donationTrendMode === mode ? "bg-rose-700 text-white" : "text-zinc-600 hover:bg-white"
+                        }`}
+                      >
+                        {mode === "daily" ? "Day" : "Month"}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-sm font-semibold text-rose-700">{money(totalDonationAmount)}</p>
+                </div>
               </div>
-              <div className="mt-6 flex h-56 items-end gap-4 rounded-xl bg-zinc-50 p-4">
-                {monthlyDonationBars.map((month) => (
-                  <div key={month.key} className="flex flex-1 flex-col items-center justify-end gap-2">
-                    <div className="flex w-full max-w-12 items-end rounded-t-lg bg-rose-100">
-                      <div className="w-full rounded-t-lg bg-rose-700" style={{ height: `${month.height}%` }} />
+              <div className="mt-6 flex h-56 items-end gap-3 overflow-x-auto rounded-xl bg-zinc-50 p-4">
+                {donationTrendBars.map((bucket) => (
+                  <div key={bucket.key} className="flex min-w-12 flex-1 flex-col items-center justify-end gap-2">
+                    <div className="flex h-28 w-full max-w-12 items-end rounded-t-lg bg-rose-100">
+                      <div className="w-full rounded-t-lg bg-rose-700" style={{ height: `${bucket.height}%` }} />
                     </div>
-                    <p className="text-xs font-semibold text-zinc-600">{month.label}</p>
-                    <p className="text-[11px] text-zinc-500">{money(month.total)}</p>
+                    <p className="text-xs font-semibold text-zinc-600">{bucket.label}</p>
+                    <p className="text-[11px] text-zinc-500">{money(bucket.total)}</p>
                   </div>
                 ))}
               </div>
@@ -1066,7 +1157,7 @@ export function DashboardPanel({
 
             <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <h3 className="text-base font-bold text-zinc-900">Upcoming Birthdays</h3>
-              <p className="mt-1 text-sm text-zinc-500">Nearest member birthdays from today</p>
+              <p className="mt-1 text-sm text-zinc-500">Member birthdays due in the next 3 days</p>
               <div className="mt-4 space-y-3">
                 {upcomingBirthdays.map((member) => (
                   <div key={member.id} className="flex items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
@@ -1086,7 +1177,7 @@ export function DashboardPanel({
                 ))}
                 {upcomingBirthdays.length === 0 && (
                   <div className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500">
-                    No member birthdays available.
+                    No member birthdays in the next 3 days.
                   </div>
                 )}
               </div>
@@ -1233,15 +1324,6 @@ export function DashboardPanel({
             </p>
             <div className="mt-4 grid gap-4 md:grid-cols-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-zinc-700">Existing Member</label>
-                <select value={donationForm.memberId} onChange={(e) => applyDonationMember(e.target.value)} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm">
-                  <option value="">Non-member / manual entry</option>
-                  {members.map((member) => (
-                    <option key={member.id} value={member.id}>{member.name} ({member.membershipId})</option>
-                  ))}
-                </select>
-              </div>
-              <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">Amount *</label>
                 <input type="number" value={donationForm.amount} onChange={(e) => setDonationForm((p) => ({ ...p, amount: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
               </div>
@@ -1287,6 +1369,65 @@ export function DashboardPanel({
                 <input value={donationForm.referralCode} onChange={(e) => setDonationForm((p) => ({ ...p, referralCode: e.target.value.toUpperCase() }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="NSF-2026-12345" />
               </div>
             </div>
+
+            <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+              <label className="flex items-center gap-2 text-sm font-semibold text-zinc-800">
+                <input
+                  type="checkbox"
+                  checked={useExistingDonationMember}
+                  onChange={(event) => {
+                    setUseExistingDonationMember(event.target.checked);
+                    if (!event.target.checked) clearDonationMember();
+                  }}
+                  className="h-4 w-4 rounded border-zinc-300"
+                />
+                Use existing member details
+              </label>
+              <p className="mt-1 text-xs text-zinc-500">
+                Keep unchecked for non-member/manual entry. Check it to search by member ID, name, email, or phone.
+              </p>
+
+              {useExistingDonationMember && (
+                <div className="mt-3 max-w-xl">
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">Search Member</label>
+                  <input
+                    value={memberSearchInput}
+                    onChange={(event) => {
+                      setMemberSearchInput(event.target.value);
+                      setDonationForm((previous) => ({ ...previous, memberId: "" }));
+                    }}
+                    className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                    placeholder="Search NSF ID, name, email, or phone"
+                  />
+                  {memberSearchResults.length > 0 && (
+                    <div className="mt-2 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
+                      {memberSearchResults.map((member) => (
+                        <button
+                          key={member.id}
+                          type="button"
+                          onClick={() => applyDonationMember(String(member.id))}
+                          className="block w-full border-b border-zinc-100 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-rose-50"
+                        >
+                          <span className="font-semibold text-zinc-900">{member.name}</span>
+                          <span className="ml-2 font-mono text-xs text-rose-700">{member.membershipId}</span>
+                          <span className="block text-xs text-zinc-500">{member.email} | {member.phone}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {debouncedMemberSearch && memberSearchResults.length === 0 && !donationForm.memberId && (
+                    <p className="mt-2 rounded-md border border-dashed border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-500">
+                      No matching member found.
+                    </p>
+                  )}
+                  {donationForm.memberId && (
+                    <p className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
+                      Selected member details will be used for donor name, email, and phone.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
             <button type="button" onClick={submitManualDonation} disabled={busy} className="mt-4 rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-60">
               {busy ? "Saving..." : "Generate & Email Receipt"}
             </button>
@@ -1312,6 +1453,7 @@ export function DashboardPanel({
           <div className="space-y-3">
             {donations.map((donation) => {
               const expanded = expandedDonationId === donation.id;
+              const isPaid = donation.paymentStatus === "paid";
               return (
                 <div key={donation.id} className="rounded-xl border border-zinc-200 bg-white p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1344,19 +1486,32 @@ export function DashboardPanel({
                       >
                         {expanded ? "Hide Details" : "View Details"}
                       </button>
-                      <a
-                        href={`/api/donations/${donation.id}/receipt`}
-                        className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                      >
-                        Download Receipt
-                      </a>
-                      <a
-                        href={`${publicSiteUrl}/verify?certificateNumber=${encodeURIComponent(donation.receiptNumber)}&documentType=donation-receipt`}
-                        target="_blank"
-                        className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-                      >
-                        Verify
-                      </a>
+                      {isPaid ? (
+                        <>
+                          <a
+                            href={`/api/donations/${donation.id}/receipt`}
+                            className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                          >
+                            Download Receipt
+                          </a>
+                          <a
+                            href={`${publicSiteUrl}/verify?certificateNumber=${encodeURIComponent(donation.receiptNumber)}&documentType=donation-receipt`}
+                            target="_blank"
+                            className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                          >
+                            Verify
+                          </a>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => removeDonation(donation.id)}
+                          disabled={busy}
+                          className="rounded-md border border-red-300 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                        >
+                          Delete Unpaid
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1555,7 +1710,6 @@ export function DashboardPanel({
         <ReceiptDashboardPanel
           initialMembershipReceipts={initialMembershipReceipts}
           initialDonationReceipts={initialDonationReceipts}
-          initialEventReceipts={initialEventReceipts}
           embedded
         />
       )}

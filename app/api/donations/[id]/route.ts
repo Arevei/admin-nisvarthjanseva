@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { generateDonationReceiptPdf, safeFileName } from "@/lib/donation-receipts";
 import type { DonationDoc } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-export async function GET(req: NextRequest, { params }: Ctx) {
+function isPaidDonation(donation: DonationDoc) {
+  return donation.status === "paid" || donation.payment?.status === "paid" || !donation.payment;
+}
+
+export async function DELETE(_req: NextRequest, { params }: Ctx) {
   const session = await getSession();
   if (!session.isAdmin) {
     return NextResponse.json({ error: "Admin authentication required" }, { status: 401 });
@@ -22,16 +25,11 @@ export async function GET(req: NextRequest, { params }: Ctx) {
   if (!donation) {
     return NextResponse.json({ error: "Donation not found" }, { status: 404 });
   }
-  if (donation.status !== "paid" && donation.payment?.status !== "paid" && donation.payment) {
-    return NextResponse.json({ error: "Receipt is available only after payment is completed." }, { status: 403 });
+
+  if (isPaidDonation(donation)) {
+    return NextResponse.json({ error: "Paid donations cannot be deleted from this action." }, { status: 409 });
   }
 
-  const pdf = await generateDonationReceiptPdf(donation, req.url);
-  return new NextResponse(pdf, {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${safeFileName(donation.receiptNumber)}.pdf"`,
-      "Cache-Control": "private, no-store",
-    },
-  });
+  await db.collection<DonationDoc>("donations").deleteOne({ id });
+  return new NextResponse(null, { status: 204 });
 }
