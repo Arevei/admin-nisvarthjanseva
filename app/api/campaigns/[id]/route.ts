@@ -62,3 +62,19 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
 
   return NextResponse.json(toResponse(updated));
 }
+
+export async function DELETE(_req: NextRequest, { params }: Ctx) {
+  const session = await getSession();
+  if (!session.isAdmin) {
+    return NextResponse.json({ error: "Admin authentication required" }, { status: 401 });
+  }
+
+  const id = Number.parseInt((await params).id, 10);
+  if (Number.isNaN(id)) {
+    return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+  }
+
+  const db = await getDb();
+  await db.collection<CampaignDoc>("campaigns").deleteOne({ id });
+  return new NextResponse(null, { status: 204 });
+}

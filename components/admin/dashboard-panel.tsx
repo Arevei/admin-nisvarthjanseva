@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import { RichTextEditor } from "@/components/admin/rich-text-editor";
 import { CloudinaryUpload } from "@/components/admin/cloudinary-upload";
@@ -226,6 +226,10 @@ export function DashboardPanel({
 }) {
   const router = useRouter();
   const publicSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const newsFormRef = useRef<HTMLDivElement | null>(null);
+  const newsTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const campaignFormRef = useRef<HTMLDivElement | null>(null);
+  const campaignTitleInputRef = useRef<HTMLInputElement | null>(null);
   const [tab, setTab] = useState<Tab>("home");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -235,6 +239,7 @@ export function DashboardPanel({
   const [donations, setDonations] = useState<DonationItem[]>(initialDonations);
   const [gallery, setGallery] = useState<GalleryItem[]>(initialGallery);
   const [visitorCertificates, setVisitorCertificates] = useState<VisitorCertificateItem[]>(initialVisitorCertificates);
+  const [editingNewsId, setEditingNewsId] = useState<number | null>(null);
   const [editingCampaignId, setEditingCampaignId] = useState<number | null>(null);
   const [editingGalleryId, setEditingGalleryId] = useState<number | null>(null);
   const [expandedDonationId, setExpandedDonationId] = useState<number | null>(null);
@@ -387,6 +392,13 @@ export function DashboardPanel({
     visitorCertificates: "Visitor Certificates",
   }[tab];
 
+  const scrollToEditorForm = (formRef: RefObject<HTMLDivElement | null>, focusRef: RefObject<HTMLInputElement | null>) => {
+    window.setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      focusRef.current?.focus({ preventScroll: true });
+    }, 0);
+  };
+
   const refreshAll = async () => {
     setError("");
     const [membersRes, newsRes, campaignsRes, donationsRes, galleryRes, visitorCertificatesRes] = await Promise.all([
@@ -463,6 +475,20 @@ export function DashboardPanel({
     }
   };
 
+  const resetNewsForm = () => {
+    setNewsForm({
+      title: "",
+      titleHindi: "",
+      content: "",
+      contentHindi: "",
+      excerpt: "",
+      imageUrl: "",
+      category: "general",
+      author: "",
+    });
+    setEditingNewsId(null);
+  };
+
   const submitNews = async () => {
     if (!newsForm.title.trim() || !newsForm.content.trim()) {
       setError("News title and content are required.");
@@ -486,19 +512,43 @@ export function DashboardPanel({
         throw new Error(payload.error || "Failed to create news");
       }
 
-      setNewsForm({
-        title: "",
-        titleHindi: "",
-        content: "",
-        contentHindi: "",
-        excerpt: "",
-        imageUrl: "",
-        category: "general",
-        author: "",
-      });
+      resetNewsForm();
       await refreshAll();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Failed to create news");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateNews = async () => {
+    if (!editingNewsId) return;
+    if (!newsForm.title.trim() || !newsForm.content.trim()) {
+      setError("News title and content are required.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/news/${editingNewsId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          ...newsForm,
+          excerpt: newsForm.excerpt || stripHtml(newsForm.content).slice(0, 160),
+        }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error || "Failed to update news");
+      }
+
+      resetNewsForm();
+      await refreshAll();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Failed to update news");
     } finally {
       setBusy(false);
     }
@@ -516,6 +566,7 @@ export function DashboardPanel({
         const payload = (await response.json()) as { error?: string };
         throw new Error(payload.error || "Failed to delete news");
       }
+      if (editingNewsId === id) resetNewsForm();
       await refreshAll();
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : "Failed to delete news");
@@ -565,6 +616,20 @@ export function DashboardPanel({
     }
   };
 
+  const resetCampaignForm = () => {
+    setCampaignForm({
+      title: "",
+      titleHindi: "",
+      description: "",
+      descriptionHindi: "",
+      goalAmount: "",
+      category: "general",
+      imageUrl: "",
+      isActive: true,
+    });
+    setEditingCampaignId(null);
+  };
+
   const updateCampaign = async (campaign: CampaignItem) => {
     setBusy(true);
     setError("");
@@ -581,9 +646,50 @@ export function DashboardPanel({
       }
 
       setEditingCampaignId(null);
+      resetCampaignForm();
       await refreshAll();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Failed to update campaign");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveEditingCampaign = async () => {
+    if (!editingCampaignId) return;
+    const existing = campaigns.find((campaign) => campaign.id === editingCampaignId);
+    if (!existing) {
+      setError("Campaign not found for editing.");
+      return;
+    }
+
+    await updateCampaign({
+      ...existing,
+      ...campaignForm,
+      titleHindi: campaignForm.titleHindi || null,
+      descriptionHindi: campaignForm.descriptionHindi || null,
+      imageUrl: campaignForm.imageUrl || null,
+      goalAmount: Number(campaignForm.goalAmount),
+    });
+  };
+
+  const removeCampaign = async (id: number) => {
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/campaigns/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok && response.status !== 204) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error || "Failed to delete campaign");
+      }
+
+      if (editingCampaignId === id) resetCampaignForm();
+      await refreshAll();
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : "Failed to delete campaign");
     } finally {
       setBusy(false);
     }
@@ -1460,12 +1566,23 @@ export function DashboardPanel({
 
       {tab === "news" && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-zinc-900">Create News</h2>
+          <div ref={newsFormRef} className="scroll-mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-bold text-zinc-900">{editingNewsId ? "Edit News" : "Create News"}</h2>
+              {editingNewsId && (
+                <button
+                  type="button"
+                  onClick={resetNewsForm}
+                  className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+                >
+                  Cancel Edit
+                </button>
+              )}
+            </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">Title (English)</label>
-                <input value={newsForm.title} onChange={(e) => setNewsForm((p) => ({ ...p, title: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+                <input ref={newsTitleInputRef} value={newsForm.title} onChange={(e) => setNewsForm((p) => ({ ...p, title: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">Title (Hindi)</label>
@@ -1503,8 +1620,8 @@ export function DashboardPanel({
               <RichTextEditor value={newsForm.contentHindi} onChange={(contentHindi) => setNewsForm((p) => ({ ...p, contentHindi }))} placeholder="Write hindi content..." />
             </div>
 
-            <button type="button" onClick={submitNews} disabled={busy} className="mt-4 rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-60">
-              {busy ? "Saving..." : "Publish News"}
+            <button type="button" onClick={editingNewsId ? updateNews : submitNews} disabled={busy} className="mt-4 rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-60">
+              {busy ? "Saving..." : editingNewsId ? "Update News" : "Publish News"}
             </button>
           </div>
 
@@ -1519,13 +1636,35 @@ export function DashboardPanel({
                     <h3 className="truncate text-base font-semibold text-zinc-900">{item.title}</h3>
                     <p className="line-clamp-2 text-sm text-zinc-600">{stripHtml(item.content)}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeNews(item.id)}
-                    className="rounded-md border border-red-300 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
-                  >
-                    Delete News
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingNewsId(item.id);
+                        setNewsForm({
+                          title: item.title,
+                          titleHindi: item.titleHindi || "",
+                          content: item.content,
+                          contentHindi: item.contentHindi || "",
+                          excerpt: item.excerpt || "",
+                          imageUrl: item.imageUrl || "",
+                          category: item.category,
+                          author: item.author || "",
+                        });
+                        scrollToEditorForm(newsFormRef, newsTitleInputRef);
+                      }}
+                      className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+                    >
+                      Edit News
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeNews(item.id)}
+                      className="rounded-md border border-red-300 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
+                    >
+                      Delete News
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1535,22 +1674,33 @@ export function DashboardPanel({
 
       {tab === "campaigns" && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div ref={campaignFormRef} className="scroll-mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-zinc-900">Create Campaign</h2>
+                <h2 className="text-lg font-bold text-zinc-900">{editingCampaignId ? "Edit Campaign" : "Create Campaign"}</h2>
                 <p className="mt-1 text-sm text-zinc-500">
                   Run multiple fundraising campaigns simultaneously and manage each campaign goal independently.
                 </p>
               </div>
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                {campaigns.filter((campaign) => campaign.isActive).length} active campaigns
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                {editingCampaignId && (
+                  <button
+                    type="button"
+                    onClick={resetCampaignForm}
+                    className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                  {campaigns.filter((campaign) => campaign.isActive).length} active campaigns
+                </span>
+              </div>
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">Title (English)</label>
-                <input value={campaignForm.title} onChange={(e) => setCampaignForm((p) => ({ ...p, title: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+                <input ref={campaignTitleInputRef} value={campaignForm.title} onChange={(e) => setCampaignForm((p) => ({ ...p, title: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">Title (Hindi)</label>
@@ -1588,8 +1738,8 @@ export function DashboardPanel({
               <span className="text-sm text-zinc-700">Campaign active</span>
             </div>
 
-            <button type="button" onClick={submitCampaign} disabled={busy} className="mt-4 rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-60">
-              {busy ? "Saving..." : "Create Campaign"}
+            <button type="button" onClick={editingCampaignId ? saveEditingCampaign : submitCampaign} disabled={busy} className="mt-4 rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-60">
+              {busy ? "Saving..." : editingCampaignId ? "Update Campaign" : "Create Campaign"}
             </button>
           </div>
 
@@ -1617,29 +1767,19 @@ export function DashboardPanel({
                           imageUrl: item.imageUrl || "",
                           isActive: item.isActive,
                         });
+                        scrollToEditorForm(campaignFormRef, campaignTitleInputRef);
                       }}
                       className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
                     >
                       Edit
                     </button>
-                    {editingCampaignId === item.id && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateCampaign({
-                            ...item,
-                            ...campaignForm,
-                            titleHindi: campaignForm.titleHindi || null,
-                            descriptionHindi: campaignForm.descriptionHindi || null,
-                            imageUrl: campaignForm.imageUrl || null,
-                            goalAmount: Number(campaignForm.goalAmount),
-                          })
-                        }
-                        className="rounded-md border border-emerald-300 bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-200"
-                      >
-                        Save Edit
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeCampaign(item.id)}
+                      className="rounded-md border border-red-300 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               </div>
