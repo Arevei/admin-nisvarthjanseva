@@ -23,6 +23,8 @@ export interface CampaignDoc {
   imageUrl: string | null;
   isActive: boolean;
   donorCount: number;
+  startDate?: Date | null;
+  endDate?: Date | null;
   createdAt: Date;
 }
 
@@ -181,5 +183,14 @@ export interface VisitorCertificateDoc {
   templateId: VisitorCertificateTemplate;
   status: "issued" | "revoked";
   issuedAt: Date;
+  createdAt: Date;
+}
+
+export interface MemberMessageDoc {
+  id: number;
+  title: string;
+  message: string;
+  isActive: boolean;
+  createdBy: string;
   createdAt: Date;
 }

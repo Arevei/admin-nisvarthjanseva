@@ -16,8 +16,16 @@ function toResponse(campaign: CampaignDoc) {
     imageUrl: campaign.imageUrl,
     isActive: campaign.isActive,
     donorCount: campaign.donorCount,
+    startDate: campaign.startDate ? campaign.startDate.toISOString() : null,
+    endDate: campaign.endDate ? campaign.endDate.toISOString() : null,
     createdAt: campaign.createdAt.toISOString(),
   };
+}
+
+function parseOptionalDate(value: unknown) {
+  if (!value) return null;
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 export async function GET() {
@@ -36,6 +44,11 @@ export async function POST(req: NextRequest) {
   if (!body.title || !body.description || !body.category || !body.goalAmount) {
     return NextResponse.json({ error: "title, description, category and goalAmount are required" }, { status: 400 });
   }
+  const startDate = parseOptionalDate(body.startDate);
+  const endDate = parseOptionalDate(body.endDate);
+  if (startDate && endDate && endDate < startDate) {
+    return NextResponse.json({ error: "Campaign end date must be after start date" }, { status: 400 });
+  }
 
   const campaign: CampaignDoc = {
     id: await nextSequence("campaigns"),
@@ -49,6 +62,8 @@ export async function POST(req: NextRequest) {
     imageUrl: body.imageUrl || null,
     isActive: body.isActive ?? true,
     donorCount: 0,
+    startDate,
+    endDate,
     createdAt: new Date(),
   };
 

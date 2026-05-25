@@ -105,6 +105,8 @@ export default async function DashboardPage() {
     imageUrl: item.imageUrl,
     isActive: item.isActive,
     donorCount: item.donorCount,
+    startDate: item.startDate?.toISOString() ?? null,
+    endDate: item.endDate?.toISOString() ?? null,
     createdAt: item.createdAt.toISOString(),
   }));
 

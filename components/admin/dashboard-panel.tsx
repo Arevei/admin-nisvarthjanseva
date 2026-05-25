@@ -16,6 +16,7 @@ type Tab =
   | "referrals"
   | "receipts"
   | "enquiries"
+  | "broadcasts"
   | "news"
   | "campaigns"
   | "gallery"
@@ -73,6 +74,17 @@ type CampaignItem = {
   imageUrl: string | null;
   isActive: boolean;
   donorCount: number;
+  startDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+};
+
+type MemberMessageItem = {
+  id: number;
+  title: string;
+  message: string;
+  isActive: boolean;
+  createdBy: string;
   createdAt: string;
 };
 
@@ -189,6 +201,13 @@ function shortDate(date: string) {
   });
 }
 
+function dateInputValue(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
 function localDateKey(date: Date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
@@ -256,6 +275,13 @@ export function DashboardPanel({
   const [useExistingDonationMember, setUseExistingDonationMember] = useState(false);
   const [memberSearchInput, setMemberSearchInput] = useState("");
   const [debouncedMemberSearch, setDebouncedMemberSearch] = useState("");
+  const [latestMemberMessage, setLatestMemberMessage] = useState<MemberMessageItem | null>(null);
+  const [memberMessageForm, setMemberMessageForm] = useState({
+    title: "Foundation Update",
+    message: "",
+    isActive: true,
+  });
+  const [memberMessageStatus, setMemberMessageStatus] = useState("");
 
   const [newsForm, setNewsForm] = useState({
     title: "",
@@ -277,6 +303,8 @@ export function DashboardPanel({
     category: "general",
     imageUrl: "",
     isActive: true,
+    startDate: "",
+    endDate: "",
   });
 
   const [galleryForm, setGalleryForm] = useState({
@@ -316,6 +344,23 @@ export function DashboardPanel({
     const timeout = window.setTimeout(() => setDebouncedMemberSearch(memberSearchInput.trim().toLowerCase()), 250);
     return () => window.clearTimeout(timeout);
   }, [memberSearchInput]);
+
+  const loadLatestMemberMessage = async () => {
+    try {
+      const response = await fetch("/api/member-messages", { credentials: "include" });
+      if (!response.ok) return;
+      const payload = (await response.json()) as { message: MemberMessageItem | null };
+      setLatestMemberMessage(payload.message);
+    } catch {
+      setLatestMemberMessage(null);
+    }
+  };
+
+  useEffect(() => {
+    window.setTimeout(() => {
+      void loadLatestMemberMessage();
+    }, 0);
+  }, []);
 
   const pendingMembers = useMemo(
     () => members.filter((member) => member.status === "pending"),
@@ -425,6 +470,7 @@ export function DashboardPanel({
     referrals: "Referral Tracking",
     receipts: "Receipt Dashboard",
     enquiries: "Enquiry Management",
+    broadcasts: "Member Messages",
     news: "News Management",
     campaigns: "Campaign Management",
     gallery: "Activity Posts",
@@ -646,6 +692,8 @@ export function DashboardPanel({
         category: "general",
         imageUrl: "",
         isActive: true,
+        startDate: "",
+        endDate: "",
       });
       await refreshAll();
     } catch (submitError) {
@@ -665,6 +713,8 @@ export function DashboardPanel({
       category: "general",
       imageUrl: "",
       isActive: true,
+      startDate: "",
+      endDate: "",
     });
     setEditingCampaignId(null);
   };
@@ -709,6 +759,8 @@ export function DashboardPanel({
       descriptionHindi: campaignForm.descriptionHindi || null,
       imageUrl: campaignForm.imageUrl || null,
       goalAmount: Number(campaignForm.goalAmount),
+      startDate: campaignForm.startDate || null,
+      endDate: campaignForm.endDate || null,
     });
   };
 
@@ -729,6 +781,37 @@ export function DashboardPanel({
       await refreshAll();
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : "Failed to delete campaign");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const publishMemberMessage = async () => {
+    if (!memberMessageForm.message.trim()) {
+      setError("Broadcast message is required.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setMemberMessageStatus("");
+    try {
+      const response = await fetch("/api/member-messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(memberMessageForm),
+      });
+      const payload = (await response.json()) as { error?: string; message?: MemberMessageItem };
+      if (!response.ok || !payload.message) {
+        throw new Error(payload.error || "Failed to publish member message");
+      }
+
+      setLatestMemberMessage(payload.message);
+      setMemberMessageForm((current) => ({ ...current, message: "" }));
+      setMemberMessageStatus("Message published. Members will see it the next time the website loads.");
+    } catch (publishError) {
+      setError(publishError instanceof Error ? publishError.message : "Failed to publish member message");
     } finally {
       setBusy(false);
     }
@@ -1068,9 +1151,15 @@ export function DashboardPanel({
           <details open className="rounded-xl border border-zinc-200 bg-zinc-50 p-2">
             <summary className="cursor-pointer px-2 py-1 text-xs font-bold uppercase tracking-wide text-zinc-500">Content</summary>
             <div className="mt-2 grid gap-1">
-              {(["campaigns", "news", "gallery", "enquiries"] as Tab[]).map((item) => (
+              {(["campaigns", "news", "gallery", "enquiries", "broadcasts"] as Tab[]).map((item) => (
                 <button key={item} type="button" onClick={() => setTab(item)} className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${tab === item ? "bg-rose-700 text-white" : "text-zinc-700 hover:bg-white"}`}>
-                  {item === "gallery" ? "Activity Posts" : item === "enquiries" ? "Enquiries" : item.charAt(0).toUpperCase() + item.slice(1)}
+                  {item === "gallery"
+                    ? "Activity Posts"
+                    : item === "enquiries"
+                      ? "Enquiries"
+                      : item === "broadcasts"
+                        ? "Member Messages"
+                        : item.charAt(0).toUpperCase() + item.slice(1)}
                 </button>
               ))}
             </div>
@@ -1879,6 +1968,14 @@ export function DashboardPanel({
                 <label className="mb-1 block text-sm font-medium text-zinc-700">Goal Amount (INR)</label>
                 <input type="number" value={campaignForm.goalAmount} onChange={(e) => setCampaignForm((p) => ({ ...p, goalAmount: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
               </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">Start Date</label>
+                <input type="date" value={campaignForm.startDate} onChange={(e) => setCampaignForm((p) => ({ ...p, startDate: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">End Date</label>
+                <input type="date" value={campaignForm.endDate} onChange={(e) => setCampaignForm((p) => ({ ...p, endDate: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+              </div>
             </div>
 
             <div className="mt-4">
@@ -1910,6 +2007,11 @@ export function DashboardPanel({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-zinc-500">{item.category} | Goal Rs {item.goalAmount.toLocaleString("en-IN")}</p>
+                    {(item.startDate || item.endDate) && (
+                      <p className="mt-1 text-xs text-zinc-500">
+                        Duration: {item.startDate ? shortDate(item.startDate).split(",")[0] : "Anytime"} - {item.endDate ? shortDate(item.endDate).split(",")[0] : "Open ended"}
+                      </p>
+                    )}
                     <h3 className="truncate text-base font-semibold text-zinc-900">{item.title}</h3>
                     <p className="line-clamp-2 text-sm text-zinc-600">{stripHtml(item.description)}</p>
                   </div>
@@ -1927,6 +2029,8 @@ export function DashboardPanel({
                           category: item.category,
                           imageUrl: item.imageUrl || "",
                           isActive: item.isActive,
+                          startDate: dateInputValue(item.startDate),
+                          endDate: dateInputValue(item.endDate),
                         });
                         scrollToEditorForm(campaignFormRef, campaignTitleInputRef);
                       }}
@@ -1946,6 +2050,72 @@ export function DashboardPanel({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {tab === "broadcasts" && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-zinc-900">Send Message to Members</h2>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Publish one notification message for all website visitors and members. The newest active message appears once per browser.
+                </p>
+              </div>
+              {latestMemberMessage && (
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${latestMemberMessage.isActive ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100 text-zinc-600"}`}>
+                  Latest #{latestMemberMessage.id}
+                </span>
+              )}
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">Message Title</label>
+                <input
+                  value={memberMessageForm.title}
+                  onChange={(event) => setMemberMessageForm((current) => ({ ...current, title: event.target.value }))}
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <label className="flex items-center gap-2 self-end">
+                <input
+                  type="checkbox"
+                  checked={memberMessageForm.isActive}
+                  onChange={(event) => setMemberMessageForm((current) => ({ ...current, isActive: event.target.checked }))}
+                />
+                <span className="text-sm text-zinc-700">Show this message on the public website</span>
+              </label>
+            </div>
+
+            <div className="mt-4">
+              <label className="mb-1 block text-sm font-medium text-zinc-700">Message</label>
+              <textarea
+                value={memberMessageForm.message}
+                onChange={(event) => setMemberMessageForm((current) => ({ ...current, message: event.target.value }))}
+                className="h-32 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                placeholder="Write the update members should see..."
+              />
+            </div>
+
+            {memberMessageStatus && <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{memberMessageStatus}</p>}
+
+            <button type="button" onClick={publishMemberMessage} disabled={busy} className="mt-4 rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-60">
+              {busy ? "Publishing..." : "Publish Message"}
+            </button>
+          </div>
+
+          {latestMemberMessage && (
+            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+              <p className="text-xs uppercase tracking-wide text-zinc-500">Latest Published Message</p>
+              <h3 className="mt-2 text-lg font-bold text-zinc-900">{latestMemberMessage.title}</h3>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700">{latestMemberMessage.message}</p>
+              <p className="mt-3 text-xs text-zinc-500">
+                Published by {latestMemberMessage.createdBy} on {shortDate(latestMemberMessage.createdAt)}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
