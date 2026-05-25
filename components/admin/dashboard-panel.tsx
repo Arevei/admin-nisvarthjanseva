@@ -167,6 +167,13 @@ function money(amount: number) {
   return `Rs ${amount.toLocaleString("en-IN")}`;
 }
 
+function compactMoney(amount: number) {
+  if (amount >= 10000000) return `Rs ${(amount / 10000000).toFixed(1).replace(/\.0$/, "")}Cr`;
+  if (amount >= 100000) return `Rs ${(amount / 100000).toFixed(1).replace(/\.0$/, "")}L`;
+  if (amount >= 1000) return `Rs ${(amount / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  return money(amount);
+}
+
 function percent(value: number, total: number) {
   if (!total || total <= 0) return 0;
   return Math.min(100, Math.round((value / total) * 100));
@@ -1021,7 +1028,7 @@ export function DashboardPanel({
   };
 
   return (
-    <div className="grid min-h-screen gap-6 lg:grid-cols-[280px_1fr]">
+    <div className="grid min-h-screen gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
       <aside className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:overflow-y-auto">
         <div className="rounded-2xl bg-rose-700 p-4 text-white">
           <p className="text-xs font-semibold uppercase tracking-widest text-rose-100">Admin Panel</p>
@@ -1075,7 +1082,7 @@ export function DashboardPanel({
         </button>
       </aside>
 
-      <section className="space-y-6">
+      <section className="min-w-0 space-y-6">
         <div className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -1093,38 +1100,38 @@ export function DashboardPanel({
       {tab === "home" && (
         <div className="space-y-6">
           <div className="grid gap-3 md:grid-cols-5">
-            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+            <div className="min-w-0 rounded-xl border border-zinc-200 bg-white p-4">
               <p className="text-xs uppercase tracking-wide text-zinc-500">Pending Reviews</p>
               <p className="mt-1 text-2xl font-bold text-zinc-900">{pendingMembers.length}</p>
             </div>
-            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+            <div className="min-w-0 rounded-xl border border-zinc-200 bg-white p-4">
               <p className="text-xs uppercase tracking-wide text-zinc-500">Awaiting Payment</p>
               <p className="mt-1 text-2xl font-bold text-zinc-900">{paymentPendingMembers.length}</p>
             </div>
-            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+            <div className="min-w-0 rounded-xl border border-zinc-200 bg-white p-4">
               <p className="text-xs uppercase tracking-wide text-zinc-500">Active Members</p>
               <p className="mt-1 text-2xl font-bold text-zinc-900">{activeMembers.length}</p>
             </div>
-            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+            <div className="min-w-0 rounded-xl border border-zinc-200 bg-white p-4">
               <p className="text-xs uppercase tracking-wide text-zinc-500">Live Campaigns</p>
               <p className="mt-1 text-2xl font-bold text-zinc-900">{campaigns.filter((c) => c.isActive).length}</p>
             </div>
-            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+            <div className="min-w-0 rounded-xl border border-zinc-200 bg-white p-4">
               <p className="text-xs uppercase tracking-wide text-zinc-500">Donation Amount</p>
-              <p className="mt-1 text-2xl font-bold text-zinc-900">{money(totalDonationAmount)}</p>
+              <p className="mt-1 break-words text-2xl font-bold text-zinc-900">{money(totalDonationAmount)}</p>
             </div>
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h3 className="text-base font-bold text-zinc-900">Donation Trend</h3>
                   <p className="mt-1 text-sm text-zinc-500">
                     {donationTrendMode === "daily" ? "Last 14 days paid donation volume" : "Last 6 months paid donation volume"}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-1">
                     {(["daily", "monthly"] as const).map((mode) => (
                       <button
@@ -1142,20 +1149,20 @@ export function DashboardPanel({
                   <p className="text-sm font-semibold text-rose-700">{money(totalDonationAmount)}</p>
                 </div>
               </div>
-              <div className="mt-6 flex h-56 items-end gap-3 overflow-x-auto rounded-xl bg-zinc-50 p-4">
+              <div className="mt-6 grid h-56 grid-cols-7 items-end gap-2 overflow-hidden rounded-xl bg-zinc-50 p-4 sm:grid-cols-[repeat(14,minmax(0,1fr))]">
                 {donationTrendBars.map((bucket) => (
-                  <div key={bucket.key} className="flex min-w-12 flex-1 flex-col items-center justify-end gap-2">
+                  <div key={bucket.key} className="flex min-w-0 flex-col items-center justify-end gap-2">
                     <div className="flex h-28 w-full max-w-12 items-end rounded-t-lg bg-rose-100">
                       <div className="w-full rounded-t-lg bg-rose-700" style={{ height: `${bucket.height}%` }} />
                     </div>
-                    <p className="text-xs font-semibold text-zinc-600">{bucket.label}</p>
-                    <p className="text-[11px] text-zinc-500">{money(bucket.total)}</p>
+                    <p className="whitespace-nowrap text-[11px] font-semibold text-zinc-600">{bucket.label}</p>
+                    <p className="whitespace-nowrap text-[10px] text-zinc-500">{compactMoney(bucket.total)}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <div className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <h3 className="text-base font-bold text-zinc-900">Upcoming Birthdays</h3>
               <p className="mt-1 text-sm text-zinc-500">Member birthdays due in the next 3 days</p>
               <div className="mt-4 space-y-3">
