@@ -22,7 +22,7 @@ export async function GET() {
 
   const db = await getDb();
   const latest = await db.collection<MemberMessageDoc>("memberMessages").findOne({}, { sort: { createdAt: -1 } });
-  return NextResponse.json({ message: latest ? toResponse(latest) : null });
+  return NextResponse.json({ message: latest?.isActive ? toResponse(latest) : null });
 }
 
 export async function POST(req: NextRequest) {

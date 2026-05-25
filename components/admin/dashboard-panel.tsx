@@ -817,6 +817,29 @@ export function DashboardPanel({
     }
   };
 
+  const deleteMemberMessage = async (id: number) => {
+    setBusy(true);
+    setError("");
+    setMemberMessageStatus("");
+    try {
+      const response = await fetch(`/api/member-messages/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok && response.status !== 204) {
+        const payload = (await response.json()) as { error?: string };
+        throw new Error(payload.error || "Failed to delete member message");
+      }
+
+      setLatestMemberMessage(null);
+      setMemberMessageStatus("Message deleted. The public notification icon will not appear until a new message is published.");
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Failed to delete member message");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const resetGalleryForm = () => {
     setGalleryForm({
       imageUrl: "",
@@ -2108,12 +2131,24 @@ export function DashboardPanel({
 
           {latestMemberMessage && (
             <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-              <p className="text-xs uppercase tracking-wide text-zinc-500">Latest Published Message</p>
-              <h3 className="mt-2 text-lg font-bold text-zinc-900">{latestMemberMessage.title}</h3>
-              <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700">{latestMemberMessage.message}</p>
-              <p className="mt-3 text-xs text-zinc-500">
-                Published by {latestMemberMessage.createdBy} on {shortDate(latestMemberMessage.createdAt)}
-              </p>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Latest Published Message</p>
+                  <h3 className="mt-2 text-lg font-bold text-zinc-900">{latestMemberMessage.title}</h3>
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700">{latestMemberMessage.message}</p>
+                  <p className="mt-3 text-xs text-zinc-500">
+                    Published by {latestMemberMessage.createdBy} on {shortDate(latestMemberMessage.createdAt)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => deleteMemberMessage(latestMemberMessage.id)}
+                  disabled={busy}
+                  className="rounded-md border border-red-300 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           )}
         </div>

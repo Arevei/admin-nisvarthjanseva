@@ -193,4 +193,6 @@ export interface MemberMessageDoc {
   isActive: boolean;
   createdBy: string;
   createdAt: Date;
+  deletedBy?: string | null;
+  deletedAt?: Date | null;
 }
