@@ -3,6 +3,7 @@ import path from "path";
 import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
 import type { VisitorCertificateDoc, VisitorCertificateTemplate } from "@/lib/types";
+import { drawDigitalStamp } from "@/lib/pdf-digital-stamp";
 
 export const visitorCertificateTemplates: Array<{
   id: VisitorCertificateTemplate;
@@ -81,22 +82,6 @@ function addCenteredFitText(
   doc.text(text, 148.5, y, { align: "center", maxWidth });
 }
 
-function drawDigitalStamp(doc: jsPDF, x: number, y: number, color: [number, number, number]) {
-  doc.setDrawColor(...color);
-  doc.setLineWidth(0.7);
-  doc.circle(x, y, 16, "S");
-  doc.setLineWidth(0.25);
-  doc.circle(x, y, 12.5, "S");
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...color);
-  doc.setFontSize(5.3);
-  doc.text("NISVARTHJAN", x, y - 6.5, { align: "center" });
-  doc.text("SEVA FOUNDATION", x, y - 2, { align: "center" });
-  doc.setFontSize(6.4);
-  doc.text("DIGITALLY", x, y + 4.5, { align: "center" });
-  doc.text("SIGNED", x, y + 9.5, { align: "center" });
-}
-
 export async function generateVisitorCertificatePdf(certificate: VisitorCertificateDoc, requestUrl: string) {
   const template = getVisitorTemplate(certificate.templateId);
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -112,61 +97,65 @@ export async function generateVisitorCertificatePdf(certificate: VisitorCertific
   doc.setLineWidth(0.35);
   doc.rect(18, 18, 261, 174);
   doc.setLineWidth(0.25);
-  doc.line(30, 31, 118, 31);
-  doc.line(179, 31, 267, 31);
+  doc.line(24, 40, 62, 40);
+  doc.line(235, 40, 273, 40);
 
   const logo = getLogo();
-  const logoHeight = 26;
+  const logoHeight = 34;
   const logoWidth = logoHeight * (logo.width / logo.height);
-  doc.addImage(logo.dataUrl, "PNG", (297 - logoWidth) / 2, 20, logoWidth, logoHeight);
+  doc.addImage(logo.dataUrl, "PNG", (297 - logoWidth) / 2, 18, logoWidth, logoHeight);
 
-  doc.addImage(qrDataUrl, "PNG", 244, 26, 24, 24);
+  doc.addImage(qrDataUrl, "PNG", 244, 24, 24, 24);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.setTextColor(...template.primary);
-  doc.text("SCAN TO VERIFY", 256, 55, { align: "center" });
+  doc.text("SCAN TO VERIFY", 256, 53, { align: "center" });
 
   doc.setFont("times", "bold");
   doc.setFontSize(22);
   doc.setTextColor(...template.primary);
-  doc.text(certificate.title.toUpperCase(), 148.5, 68, { align: "center" });
+  doc.text(certificate.title.toUpperCase(), 148.5, 74, { align: "center" });
 
   doc.setDrawColor(...template.primary);
-  doc.line(88, 76, 209, 76);
+  doc.line(98, 82, 199, 82);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(13);
   doc.setTextColor(75, 75, 75);
-  doc.text("This certificate is proudly presented to", 148.5, 92, { align: "center" });
+  doc.text("This certificate is proudly presented to", 148.5, 98, { align: "center" });
 
   doc.setFont("times", "bolditalic");
-  addCenteredFitText(doc, certificate.recipientName.toUpperCase(), 111, 31, 18, 215, template.accent);
+  addCenteredFitText(doc, certificate.recipientName.toUpperCase(), 117, 31, 18, 215, template.accent);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(12);
   doc.setTextColor(75, 75, 75);
   const descriptionLines = doc.splitTextToSize(certificate.description, 190).slice(0, 3);
-  doc.text(descriptionLines, 148.5, 127, { align: "center" });
+  doc.text(descriptionLines, 148.5, 133, { align: "center" });
 
   if (certificate.eventName) {
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...template.primary);
-    doc.text(certificate.eventName, 148.5, 150, { align: "center" });
+    doc.text(certificate.eventName, 148.5, 154, { align: "center" });
   }
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...template.primary);
-  doc.text("Certificate No.", 34, 170);
-  doc.text("Issued On", 34, 182);
-  doc.text("Issued By", 178, 170);
+  doc.text("Certificate No.", 34, 168);
+  doc.text("Issued On", 34, 178);
 
   doc.setTextColor(35, 35, 35);
-  doc.text(certificate.certificateNumber, 78, 170);
-  doc.text(formatDate(certificate.issuedAt), 78, 182);
-  doc.text(certificate.issuedBy || "Nisvarthjan Seva Foundation", 207, 170, { maxWidth: 58 });
+  doc.setFont("helvetica", "normal");
+  doc.text(certificate.certificateNumber, 78, 168);
+  doc.text(formatDate(certificate.issuedAt), 78, 178);
 
-  drawDigitalStamp(doc, 234, 181, template.primary);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(75, 75, 75);
+  doc.text(certificate.issuedBy || "Nisvarthjan Seva Foundation", 148.5, 168, { align: "center", maxWidth: 90 });
+
+  drawDigitalStamp(doc, 148.5, 184, template.primary);
 
   return doc.output("arraybuffer");
 }

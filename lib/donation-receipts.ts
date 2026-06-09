@@ -3,6 +3,7 @@ import path from "path";
 import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
 import type { DonationDoc } from "@/lib/types";
+import { drawDigitalStamp } from "@/lib/pdf-digital-stamp";
 
 export function getVerificationBaseUrl(requestUrl: string) {
   return process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || new URL(requestUrl).origin;
@@ -79,22 +80,6 @@ function getLogo() {
   };
 }
 
-function drawDigitalStamp(doc: jsPDF, x: number, y: number, color: [number, number, number] = [190, 0, 39]) {
-  doc.setDrawColor(...color);
-  doc.setLineWidth(0.7);
-  doc.circle(x, y, 17, "S");
-  doc.setLineWidth(0.25);
-  doc.circle(x, y, 13, "S");
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...color);
-  doc.setFontSize(5.5);
-  doc.text("NISVARTHJAN", x, y - 7, { align: "center" });
-  doc.text("SEVA FOUNDATION", x, y - 2.5, { align: "center" });
-  doc.setFontSize(6.5);
-  doc.text("DIGITALLY", x, y + 4, { align: "center" });
-  doc.text("SIGNED", x, y + 9, { align: "center" });
-}
-
 function drawInfoRow(doc: jsPDF, label: string, value: string, x: number, y: number, width = 72) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
@@ -115,31 +100,34 @@ export async function generateDonationReceiptPdf(donation: DonationDoc, requestU
   const verifyUrl = `${getVerificationBaseUrl(requestUrl)}/verify?certificateNumber=${encodeURIComponent(donation.receiptNumber)}&documentType=donation-receipt`;
   const qrDataUrl = await QRCode.toDataURL(verifyUrl, { errorCorrectionLevel: "M", margin: 1, width: 180 });
 
+  const cardTop = 36;
+  const cardHeight = 245;
+
   doc.setFillColor(248, 250, 252);
   doc.rect(0, 0, 210, 297, "F");
   doc.setFillColor(190, 0, 39);
-  doc.rect(0, 0, 210, 38, "F");
+  doc.rect(0, 0, 210, 44, "F");
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(14, 28, 182, 241, 3, 3, "F");
+  doc.roundedRect(14, cardTop, 182, cardHeight, 3, 3, "F");
   doc.setDrawColor(228, 228, 231);
   doc.setLineWidth(0.35);
-  doc.roundedRect(14, 28, 182, 241, 3, 3);
+  doc.roundedRect(14, cardTop, 182, cardHeight, 3, 3);
 
   const logo = getLogo();
-  const logoHeight = 20;
+  const logoHeight = 18;
   const logoWidth = logoHeight * (logo.width / logo.height);
-  doc.addImage(logo.dataUrl, "PNG", 22, 9, logoWidth, logoHeight);
+  doc.addImage(logo.dataUrl, "PNG", 22, 10, logoWidth, logoHeight);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(17);
   doc.setTextColor(255, 255, 255);
-  doc.text("80G Donation Receipt", 188, 16, { align: "right" });
+  doc.text("80G Donation Receipt", 188, 17, { align: "right" });
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  doc.text("Generated for income tax deduction under Section 80G", 188, 24, { align: "right" });
+  doc.text("Generated for income tax deduction under Section 80G", 188, 26, { align: "right" });
 
   doc.setFillColor(255, 245, 247);
-  doc.roundedRect(22, 46, 166, 22, 2, 2, "F");
+  doc.roundedRect(22, 54, 166, 22, 2, 2, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.setTextColor(190, 0, 39);
@@ -181,28 +169,32 @@ export async function generateDonationReceiptPdf(donation: DonationDoc, requestU
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(190, 0, 39);
-  doc.text("Payment & 80G Details", 22, 204);
+  doc.text("Payment & 80G Details", 22, 200);
   doc.setDrawColor(244, 63, 94);
-  doc.line(22, 208, 188, 208);
-  drawInfoRow(doc, "Payment Mode", paymentMode.replace(/[_-]+/g, " ").toUpperCase(), 22, 219, 60);
-  drawInfoRow(doc, "Payment Ref.", paymentReference, 92, 219, 92);
-  drawInfoRow(doc, "Organization PAN", safeText(taxExemption.ngoPan), 22, 237, 60);
-  drawInfoRow(doc, "80G Reg. No.", safeText(taxExemption.registrationNumber), 92, 237, 92);
-  drawInfoRow(doc, "80G Validity", safeText(taxExemption.validity), 22, 255, 60);
+  doc.line(22, 204, 188, 204);
+  drawInfoRow(doc, "Payment Mode", paymentMode.replace(/[_-]+/g, " ").toUpperCase(), 22, 213, 60);
+  drawInfoRow(doc, "Payment Ref.", paymentReference, 92, 213, 92);
+  drawInfoRow(doc, "Organization PAN", safeText(taxExemption.ngoPan), 22, 229, 60);
+  drawInfoRow(doc, "80G Reg. No.", safeText(taxExemption.registrationNumber), 92, 229, 92);
+  drawInfoRow(doc, "80G Validity", safeText(taxExemption.validity), 22, 245, 60);
+
+  doc.setDrawColor(244, 63, 94);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(108, 236, 78, 38, 2, 2);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(113, 113, 122);
-  doc.text(doc.splitTextToSize(`Registered Address: ${safeText(taxExemption.address)}`, 102).slice(0, 2), 22, 268);
-  doc.text("This computer-generated receipt is valid without a handwritten signature.", 22, 282);
+  doc.text(doc.splitTextToSize(`Registered Address: ${safeText(taxExemption.address)}`, 82).slice(0, 2), 22, 258);
+  doc.text("This computer-generated receipt is valid without a handwritten signature.", 22, 272);
 
-  doc.addImage(qrDataUrl, "PNG", 156, 246, 24, 24);
+  doc.addImage(qrDataUrl, "PNG", 158, 240, 22, 22);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(6.5);
   doc.setTextColor(190, 0, 39);
-  doc.text("SCAN TO VERIFY", 168, 274, { align: "center" });
+  doc.text("SCAN TO VERIFY", 169, 266, { align: "center" });
 
-  drawDigitalStamp(doc, 137, 267);
+  drawDigitalStamp(doc, 128, 255);
 
   return doc.output("arraybuffer");
 }

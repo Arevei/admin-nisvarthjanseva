@@ -20,7 +20,8 @@ type Tab =
   | "news"
   | "campaigns"
   | "gallery"
-  | "visitorCertificates";
+  | "visitorCertificates"
+  | "siteSettings";
 
 type MemberItem = {
   id: number;
@@ -284,6 +285,8 @@ export function DashboardPanel({
     isActive: true,
   });
   const [memberMessageStatus, setMemberMessageStatus] = useState("");
+  const [defaultLanguage, setDefaultLanguage] = useState<"en" | "hi">("hi");
+  const [siteSettingsStatus, setSiteSettingsStatus] = useState("");
 
   const [newsForm, setNewsForm] = useState({
     title: "",
@@ -479,6 +482,7 @@ export function DashboardPanel({
     campaigns: "Campaign Management",
     gallery: "Activity Posts",
     visitorCertificates: "Visitor Certificates",
+    siteSettings: "Site Settings",
   }[tab];
 
   const scrollToEditorForm = (formRef: RefObject<HTMLDivElement | null>, focusRef: RefObject<HTMLInputElement | null>) => {
@@ -486,6 +490,45 @@ export function DashboardPanel({
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       focusRef.current?.focus({ preventScroll: true });
     }, 0);
+  };
+
+  useEffect(() => {
+    if (tab !== "siteSettings") return;
+
+    fetch("/api/site-settings", { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Failed to load site settings");
+        const data = (await response.json()) as { defaultLanguage?: "en" | "hi" };
+        if (data.defaultLanguage === "en" || data.defaultLanguage === "hi") {
+          setDefaultLanguage(data.defaultLanguage);
+        }
+      })
+      .catch((loadError) => {
+        setError(loadError instanceof Error ? loadError.message : "Failed to load site settings");
+      });
+  }, [tab]);
+
+  const saveSiteSettings = async () => {
+    setBusy(true);
+    setError("");
+    setSiteSettingsStatus("");
+    try {
+      const response = await fetch("/api/site-settings", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defaultLanguage }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error || "Failed to save site settings");
+      }
+      setSiteSettingsStatus("Site settings saved.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Failed to save site settings");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const refreshAll = async () => {
@@ -1185,7 +1228,7 @@ export function DashboardPanel({
           <details open className="rounded-xl border border-zinc-200 bg-zinc-50 p-2">
             <summary className="cursor-pointer px-2 py-1 text-xs font-bold uppercase tracking-wide text-zinc-500">Content</summary>
             <div className="mt-2 grid gap-1">
-              {(["campaigns", "news", "gallery", "enquiries", "broadcasts"] as Tab[]).map((item) => (
+              {(["campaigns", "news", "gallery", "enquiries", "broadcasts", "siteSettings"] as Tab[]).map((item) => (
                 <button key={item} type="button" onClick={() => setTab(item)} className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${tab === item ? "bg-rose-700 text-white" : "text-zinc-700 hover:bg-white"}`}>
                   {item === "gallery"
                     ? "Activity Posts"
@@ -1193,7 +1236,9 @@ export function DashboardPanel({
                       ? "Enquiries"
                       : item === "broadcasts"
                         ? "Member Messages"
-                        : item.charAt(0).toUpperCase() + item.slice(1)}
+                        : item === "siteSettings"
+                          ? "Site Settings"
+                          : item.charAt(0).toUpperCase() + item.slice(1)}
                 </button>
               ))}
             </div>
@@ -2435,6 +2480,41 @@ export function DashboardPanel({
                 No visitor certificates issued yet.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {tab === "siteSettings" && (
+        <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h3 className="text-lg font-bold text-zinc-950">Website Default Language</h3>
+          <p className="mt-2 max-w-2xl text-sm text-zinc-600">
+            Choose the default language for new visitors. Returning visitors who already picked a language in the navbar keep their saved choice.
+          </p>
+
+          <div className="mt-6 max-w-md space-y-4">
+            <label className="block text-sm font-semibold text-zinc-700" htmlFor="default-language">
+              Default language
+            </label>
+            <select
+              id="default-language"
+              value={defaultLanguage}
+              onChange={(event) => setDefaultLanguage(event.target.value as "en" | "hi")}
+              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-900"
+            >
+              <option value="hi">Hindi</option>
+              <option value="en">English</option>
+            </select>
+
+            <button
+              type="button"
+              disabled={busy}
+              onClick={saveSiteSettings}
+              className="rounded-xl bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-60"
+            >
+              Save Settings
+            </button>
+
+            {siteSettingsStatus && <p className="text-sm font-medium text-emerald-700">{siteSettingsStatus}</p>}
           </div>
         </div>
       )}
