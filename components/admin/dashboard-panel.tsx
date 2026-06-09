@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { RichTextEditor } from "@/components/admin/rich-text-editor";
 import { CloudinaryUpload } from "@/components/admin/cloudinary-upload";
@@ -1191,6 +1192,15 @@ export function DashboardPanel({
     <div className="grid min-h-screen gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
       <aside className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:overflow-y-auto">
         <div className="rounded-2xl bg-rose-700 p-4 text-white">
+          <div className="mb-3 flex justify-center rounded-xl bg-white px-3 py-2.5">
+            <Image
+              src="/brand/logo-navbar.png"
+              alt="Nisvarthjan Seva Foundation"
+              width={220}
+              height={56}
+              className="h-10 w-auto"
+            />
+          </div>
           <p className="text-xs font-semibold uppercase tracking-widest text-rose-100">Admin Panel</p>
           <h1 className="mt-2 text-xl font-bold">Nisvarthjan</h1>
           <p className="mt-1 truncate text-xs text-rose-100">{email}</p>
