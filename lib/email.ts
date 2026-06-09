@@ -131,15 +131,16 @@ export async function sendDonationReceiptEmail(donation: DonationDoc, requestUrl
   await transporter.sendMail({
     from: fromAddress,
     to: donation.donorEmail,
-    subject: "Donation receipt - Nisvarthjan Seva Foundation",
+    subject: "80G donation receipt - Nisvarthjan Seva Foundation",
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #18181b;">
         <h2 style="margin-bottom: 8px;">Nisvarthjan Seva Foundation</h2>
         <p style="margin-top: 0; color: #52525b;">Thank you for your donation.</p>
         <p>Dear ${donation.donorName},</p>
-        <p>Your QR-coded donation receipt PDF is attached with this email.</p>
+        <p>Your QR-coded 80G donation receipt PDF is attached with this email.</p>
         <table style="border-collapse: collapse; margin: 16px 0;">
           <tr><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">Receipt No.</td><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">${donation.receiptNumber}</td></tr>
+          <tr><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">Donor PAN</td><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">${donation.donorPan || "Not provided"}</td></tr>
           <tr><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">Amount</td><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">INR ${donation.amount.toLocaleString("en-IN")}</td></tr>
           <tr><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">Payment Mode</td><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">${donation.payment?.mode || "manual"}</td></tr>
         </table>

@@ -81,6 +81,22 @@ function addCenteredFitText(
   doc.text(text, 148.5, y, { align: "center", maxWidth });
 }
 
+function drawDigitalStamp(doc: jsPDF, x: number, y: number, color: [number, number, number]) {
+  doc.setDrawColor(...color);
+  doc.setLineWidth(0.7);
+  doc.circle(x, y, 16, "S");
+  doc.setLineWidth(0.25);
+  doc.circle(x, y, 12.5, "S");
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...color);
+  doc.setFontSize(5.3);
+  doc.text("NISVARTHJAN", x, y - 6.5, { align: "center" });
+  doc.text("SEVA FOUNDATION", x, y - 2, { align: "center" });
+  doc.setFontSize(6.4);
+  doc.text("DIGITALLY", x, y + 4.5, { align: "center" });
+  doc.text("SIGNED", x, y + 9.5, { align: "center" });
+}
+
 export async function generateVisitorCertificatePdf(certificate: VisitorCertificateDoc, requestUrl: string) {
   const template = getVisitorTemplate(certificate.templateId);
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -150,11 +166,7 @@ export async function generateVisitorCertificatePdf(certificate: VisitorCertific
   doc.text(formatDate(certificate.issuedAt), 78, 182);
   doc.text(certificate.issuedBy || "Nisvarthjan Seva Foundation", 207, 170, { maxWidth: 58 });
 
-  doc.setDrawColor(...template.accent);
-  doc.setLineWidth(0.3);
-  doc.line(205, 184, 262, 184);
-  doc.setTextColor(...template.primary);
-  doc.text("Authorized Signature", 233.5, 190, { align: "center" });
+  drawDigitalStamp(doc, 234, 181, template.primary);
 
   return doc.output("arraybuffer");
 }

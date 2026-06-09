@@ -143,6 +143,8 @@ export default async function DashboardPage() {
     donorName: item.donorName,
     donorEmail: item.donorEmail,
     donorPhone: item.donorPhone ?? null,
+    donorPan: item.donorPan ?? null,
+    donorAddress: item.donorAddress ?? null,
     campaignId: item.campaignId ?? null,
     campaignTitle: item.campaignId ? campaignTitleById.get(item.campaignId) ?? null : null,
     purpose: item.purpose,

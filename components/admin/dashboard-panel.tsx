@@ -94,6 +94,8 @@ type DonationItem = {
   donorName: string;
   donorEmail: string;
   donorPhone: string | null;
+  donorPan: string | null;
+  donorAddress: string | null;
   campaignId: number | null;
   campaignTitle: string | null;
   purpose: string;
@@ -321,6 +323,8 @@ export function DashboardPanel({
     donorName: "",
     donorEmail: "",
     donorPhone: "",
+    donorPan: "",
+    donorAddress: "",
     campaignId: "",
     purpose: "General Donation",
     paymentMode: "cash" as (typeof donationPaymentModes)[number],
@@ -938,6 +942,8 @@ export function DashboardPanel({
       donorName: "",
       donorEmail: "",
       donorPhone: "",
+      donorPan: "",
+      donorAddress: "",
       campaignId: "",
       purpose: "General Donation",
       paymentMode: "cash",
@@ -958,6 +964,7 @@ export function DashboardPanel({
       donorName: member?.name ?? "",
       donorEmail: member?.email ?? "",
       donorPhone: member?.phone ?? "",
+      donorAddress: [member?.address, member?.city, member?.state].filter(Boolean).join(", "),
     }));
     if (member) {
       setMemberSearchInput(`${member.name} (${member.membershipId})`);
@@ -972,6 +979,8 @@ export function DashboardPanel({
       donorName: "",
       donorEmail: "",
       donorPhone: "",
+      donorPan: "",
+      donorAddress: "",
     }));
     setMemberSearchInput("");
     setDebouncedMemberSearch("");
@@ -995,6 +1004,8 @@ export function DashboardPanel({
           donorName: donationForm.donorName,
           donorEmail: donationForm.donorEmail,
           donorPhone: donationForm.donorPhone,
+          donorPan: donationForm.donorPan,
+          donorAddress: donationForm.donorAddress,
           campaignId: donationForm.campaignId ? Number(donationForm.campaignId) : null,
           purpose: donationForm.purpose,
           paymentMode: donationForm.paymentMode,
@@ -1459,6 +1470,14 @@ export function DashboardPanel({
                 <input value={donationForm.donorPhone} onChange={(e) => setDonationForm((p) => ({ ...p, donorPhone: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
               </div>
               <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-700">Donor PAN for 80G</label>
+                <input value={donationForm.donorPan} onChange={(e) => setDonationForm((p) => ({ ...p, donorPan: e.target.value.toUpperCase() }))} maxLength={10} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" placeholder="ABCDE1234F" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-sm font-medium text-zinc-700">Donor Address for 80G</label>
+                <input value={donationForm.donorAddress} onChange={(e) => setDonationForm((p) => ({ ...p, donorAddress: e.target.value }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">Payment Mode</label>
                 <select value={donationForm.paymentMode} onChange={(e) => setDonationForm((p) => ({ ...p, paymentMode: e.target.value as typeof donationForm.paymentMode }))} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm">
                   {donationPaymentModes.map((mode) => (
@@ -1642,6 +1661,14 @@ export function DashboardPanel({
                           <div className="flex justify-between gap-4">
                             <dt className="text-zinc-500">Donor phone</dt>
                             <dd className="text-right text-zinc-800">{donation.donorPhone || "Not provided"}</dd>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Donor PAN</dt>
+                            <dd className="text-right text-zinc-800">{donation.donorPan || "Not provided"}</dd>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <dt className="text-zinc-500">Donor address</dt>
+                            <dd className="text-right text-zinc-800">{donation.donorAddress || "Not provided"}</dd>
                           </div>
                           <div className="flex justify-between gap-4">
                             <dt className="text-zinc-500">Purpose</dt>

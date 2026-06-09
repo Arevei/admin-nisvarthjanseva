@@ -136,6 +136,22 @@ function addCenteredFitText(doc: jsPDF, text: string, y: number, size: number, m
   doc.text(text, 148.5, y, { align: "center", maxWidth });
 }
 
+function drawDigitalStamp(doc: jsPDF, x: number, y: number, color: [number, number, number]) {
+  doc.setDrawColor(...color);
+  doc.setLineWidth(0.7);
+  doc.circle(x, y, 16, "S");
+  doc.setLineWidth(0.25);
+  doc.circle(x, y, 12.5, "S");
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...color);
+  doc.setFontSize(5.3);
+  doc.text("NISVARTHJAN", x, y - 6.5, { align: "center" });
+  doc.text("SEVA FOUNDATION", x, y - 2, { align: "center" });
+  doc.setFontSize(6.4);
+  doc.text("DIGITALLY", x, y + 4.5, { align: "center" });
+  doc.text("SIGNED", x, y + 9.5, { align: "center" });
+}
+
 export async function generateReferralAchievementCertificatePdf(
   member: ReferralAchievementMember,
   requestUrl: string,
@@ -216,12 +232,11 @@ export async function generateReferralAchievementCertificatePdf(
 
   doc.setDrawColor(35, 35, 35);
   doc.line(34, 180, 92, 180);
-  doc.line(205, 180, 263, 180);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(r, g, b);
   doc.text("Recipient Signature", 63, 186, { align: "center" });
-  doc.text("Authorized Signature", 234, 186, { align: "center" });
+  drawDigitalStamp(doc, 234, 178, [r, g, b]);
 
   return doc.output("arraybuffer");
 }

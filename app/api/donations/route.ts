@@ -16,6 +16,8 @@ function toResponse(donation: DonationDoc, campaignTitle?: string | null) {
     donorName: donation.donorName,
     donorEmail: donation.donorEmail,
     donorPhone: donation.donorPhone ?? null,
+    donorPan: donation.donorPan ?? null,
+    donorAddress: donation.donorAddress ?? null,
     campaignId: donation.campaignId ?? null,
     campaignTitle: campaignTitle ?? null,
     purpose: donation.purpose,
@@ -63,6 +65,8 @@ export async function POST(req: NextRequest) {
     donorName?: string;
     donorEmail?: string;
     donorPhone?: string;
+    donorPan?: string;
+    donorAddress?: string;
     campaignId?: number | null;
     purpose?: string;
     referralCode?: string;
@@ -83,6 +87,8 @@ export async function POST(req: NextRequest) {
   const donorName = selectedMember?.name || String(body.donorName ?? "").trim();
   const donorEmail = selectedMember?.email || String(body.donorEmail ?? "").trim();
   const donorPhone = selectedMember?.phone || String(body.donorPhone ?? "").trim();
+  const donorPan = String(body.donorPan ?? "").trim().toUpperCase();
+  const donorAddress = String(body.donorAddress ?? "").trim();
 
   if (!donorName || !donorEmail) {
     return NextResponse.json({ error: "donorName and donorEmail are required" }, { status: 400 });
@@ -100,6 +106,8 @@ export async function POST(req: NextRequest) {
     donorName,
     donorEmail: donorEmail.trim().toLowerCase(),
     donorPhone: donorPhone || null,
+    donorPan: donorPan || null,
+    donorAddress: donorAddress || null,
     campaignId: body.campaignId ? Number(body.campaignId) : null,
     purpose: body.purpose,
     receiptNumber: generateReceiptNumber(),

@@ -100,6 +100,8 @@ export interface DonationDoc {
   donorName: string;
   donorEmail: string;
   donorPhone?: string | null;
+  donorPan?: string | null;
+  donorAddress?: string | null;
   campaignId?: number | null;
   purpose: string;
   receiptNumber: string;
