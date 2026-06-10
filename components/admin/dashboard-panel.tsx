@@ -1198,7 +1198,7 @@ export function DashboardPanel({
               alt="Nisvarthjan Seva Foundation"
               width={220}
               height={56}
-              className="h-10 w-auto"
+              className=""
             />
           </div>
           <p className="text-xs font-semibold uppercase tracking-widest text-rose-100">Admin Panel</p>
