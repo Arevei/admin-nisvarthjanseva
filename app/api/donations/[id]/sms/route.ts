@@ -27,17 +27,25 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: "Donor phone number not available" }, { status: 400 });
   }
 
-  const message = generateDonationReceiptSms(
-    donation.donorName,
-    donation.amount,
-    donation.receiptNumber
-  );
+  try {
+    const message = generateDonationReceiptSms(
+      donation.donorName,
+      donation.amount,
+      donation.receiptNumber
+    );
 
-  const result = await sendSms({ to: donation.donorPhone, message });
+    console.log(`[SMS] Sending SMS to ${donation.donorPhone} for receipt ${donation.receiptNumber}`);
+    const result = await sendSms({ to: donation.donorPhone, message });
 
-  if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: 500 });
+    if (!result.success) {
+      console.error(`[SMS] Failed: ${result.error}`);
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+
+    console.log(`[SMS] Success: ${result.sid}`);
+    return NextResponse.json({ success: true, sid: result.sid });
+  } catch (error) {
+    console.error("[SMS] Unexpected error:", error);
+    return NextResponse.json({ error: "Failed to send SMS" }, { status: 500 });
   }
-
-  return NextResponse.json({ success: true, sid: result.sid });
 }

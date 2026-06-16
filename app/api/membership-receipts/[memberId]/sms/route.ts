@@ -27,14 +27,22 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: "Member phone number not available" }, { status: 400 });
   }
 
-  const receiptNumber = member.payment?.receipt || `MRC-${member.membershipId}`;
-  const message = generateMembershipReceiptSms(member.name, member.membershipId, receiptNumber);
+  try {
+    const receiptNumber = member.payment?.receipt || `MRC-${member.membershipId}`;
+    const message = generateMembershipReceiptSms(member.name, member.membershipId, receiptNumber);
 
-  const result = await sendSms({ to: member.phone, message });
+    console.log(`[SMS] Sending membership SMS to ${member.phone} for member ${member.membershipId}`);
+    const result = await sendSms({ to: member.phone, message });
 
-  if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: 500 });
+    if (!result.success) {
+      console.error(`[SMS] Failed: ${result.error}`);
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+
+    console.log(`[SMS] Success: ${result.sid}`);
+    return NextResponse.json({ success: true, sid: result.sid });
+  } catch (error) {
+    console.error("[SMS] Unexpected error:", error);
+    return NextResponse.json({ error: "Failed to send SMS" }, { status: 500 });
   }
-
-  return NextResponse.json({ success: true, sid: result.sid });
 }

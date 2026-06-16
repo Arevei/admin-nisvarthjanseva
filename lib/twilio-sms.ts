@@ -6,6 +6,13 @@ const fromNumber = process.env.TWILIO_PHONE_NUMBER;
 
 const client = accountSid && authToken ? twilio(accountSid, authToken) : null;
 
+if (!client) {
+  console.warn("[Twilio] SMS not configured. Missing TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN");
+}
+if (!fromNumber) {
+  console.warn("[Twilio] Missing TWILIO_PHONE_NUMBER");
+}
+
 export interface SendSmsOptions {
   to: string;
   message: string;
@@ -13,8 +20,9 @@ export interface SendSmsOptions {
 
 export async function sendSms({ to, message }: SendSmsOptions) {
   if (!client || !fromNumber) {
-    console.warn("Twilio SMS not configured. Skipping SMS send.");
-    return { success: false, error: "Twilio not configured" };
+    const error = "Twilio not configured. Check environment variables: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER";
+    console.error("[Twilio]", error);
+    return { success: false, error };
   }
 
   if (!to || !message) {
@@ -22,16 +30,20 @@ export async function sendSms({ to, message }: SendSmsOptions) {
   }
 
   try {
+    const phoneNumber = to.startsWith("+") ? to : `+91${to.replace(/\D/g, "")}`;
+    console.log(`[Twilio] Sending SMS to ${phoneNumber}, from ${fromNumber}`);
+    
     const result = await client.messages.create({
       body: message,
       from: fromNumber,
-      to: to.startsWith("+") ? to : `+91${to.replace(/\D/g, "")}`,
+      to: phoneNumber,
     });
 
     return { success: true, sid: result.sid };
   } catch (error) {
-    console.error("SMS sending failed:", error);
-    return { success: false, error: String(error) };
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("[Twilio] SMS sending failed:", errorMsg);
+    return { success: false, error: errorMsg };
   }
 }
 

@@ -35,25 +35,6 @@ function get80GDetails() {
   };
 }
 
-const PURPOSE_LABELS = new Map([
-  ["\u0936\u093f\u0915\u094d\u0937\u093e \u0938\u0939\u093e\u092f\u0924\u093e", "Education Support"],
-  ["\u0938\u094d\u0935\u093e\u0938\u094d\u0925\u094d\u092f \u0938\u0947\u0935\u093e", "Health Services"],
-  [
-    "\u0917\u0930\u0940\u092c \u090f\u0935\u0902 \u091c\u0930\u0942\u0930\u0924\u092e\u0902\u0926 \u0938\u0939\u093e\u092f\u0924\u093e",
-    "Poor & Needy Support",
-  ],
-  ["\u092a\u0930\u094d\u092f\u093e\u0935\u0930\u0923 \u0905\u092d\u093f\u092f\u093e\u0928", "Environment Campaign"],
-  ["\u0906\u092a\u0926\u093e \u0930\u093e\u0939\u0924 \u0915\u093e\u0930\u094d\u092f", "Disaster Relief"],
-  ["\u0938\u093e\u092e\u093e\u0928\u094d\u092f \u0926\u093e\u0928", "General Donation"],
-]);
-
-function normalizeDonationPurpose(value: string) {
-  const text = safeText(value).trim();
-  const repairedText = Buffer.from(text, "latin1").toString("utf8");
-
-  return PURPOSE_LABELS.get(text) || PURPOSE_LABELS.get(repairedText) || text;
-}
-
 function formatDate(value: Date | string | undefined) {
   if (!value) return "Not available";
   return new Date(value).toLocaleDateString("en-IN", {
@@ -91,10 +72,51 @@ function drawInfoRow(doc: jsPDF, label: string, value: string, x: number, y: num
   doc.text(doc.splitTextToSize(value, width).slice(0, 2), x, y + 5);
 }
 
+/**
+ * Load Hindi font for rendering Devanagari text in PDFs
+ * Uses TiroDevanagariHindi-Regular.ttf from public folder
+ */
+function getHindiFont() {
+  try {
+    const fontPath = path.join(process.cwd(), "public", "TiroDevanagariHindi-Regular.ttf");
+    const fontBuffer = readFileSync(fontPath);
+    return fontBuffer.toString("base64");
+  } catch (error) {
+    console.warn("Hindi font not found, will use fallback rendering");
+    return null;
+  }
+}
+
+// Hindi verse for the receipt
 const HINDI_VERSE = "रामदूत मैं मात जानकी लेता हूँ शपथ, निस्वार्थ सेवा के लिए करुणानिधान की।";
+
+/**
+ * Normalize donation purpose to English (mapping from form selection)
+ * Form options are: Education Support, Health Services, Poor & Needy Support,
+ * Environment Campaign, Disaster Relief, General Donation
+ */
+function normalizeDonationPurpose(value: string): string {
+  if (!value) return "General Donation";
+  const text = String(value).trim();
+  // All form values are already in English from the frontend dropdown
+  // This is a safety check for any legacy data
+  return text;
+}
 
 export async function generateDonationReceiptPdf(donation: DonationDoc, requestUrl: string) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  
+  // Load and register Hindi font for Devanagari text rendering
+  const hindiFont = getHindiFont();
+  if (hindiFont) {
+    try {
+      doc.addFileToVFS("TiroDevanagariHindi-Regular.ttf", hindiFont);
+      doc.addFont("TiroDevanagariHindi-Regular.ttf", "TiroDevanagari", "normal");
+    } catch (error) {
+      console.warn("Failed to register Hindi font:", error);
+    }
+  }
+  
   const paidAt = donation.payment?.paidAt || donation.createdAt;
   const paymentMode = donation.payment?.mode || "manual";
   const paymentReference = donation.payment?.paymentId || donation.payment?.orderId || donation.payment?.receipt || donation.receiptNumber;
@@ -187,8 +209,16 @@ export async function generateDonationReceiptPdf(donation: DonationDoc, requestU
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(113, 113, 122);
-  doc.text(doc.splitTextToSize(HINDI_VERSE, 160).slice(0, 2), 22, 228);
-  doc.text(doc.splitTextToSize(`Registered Address: ${safeText(taxExemption.address)}`, 82).slice(0, 2), 22, 242);
+  // Render Sanskrit verse using Hindi font
+  if (hindiFont) {
+    doc.setFont("TiroDevanagari", "normal");
+    doc.setFontSize(5.5);
+    doc.text(HINDI_VERSE, 22, 228, { maxWidth: 160 });
+    doc.setFont("helvetica", "normal");
+  } else {
+    doc.text(doc.splitTextToSize("[Foundation Sanskrit Verse - See digital certificate]", 160).slice(0, 1), 22, 228);
+  }
+  doc.text(doc.splitTextToSize(`Registered Address: ${safeText(taxExemption.address)}`, 82).slice(0, 2), 22, 235);
   doc.text("This computer-generated receipt is valid without a handwritten signature.", 22, 254);
 
   doc.addImage(qrDataUrl, "PNG", 158, 223, 20, 20);
