@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { sendMembershipApprovalPaymentEmail } from "@/lib/email";
+import { sendMembershipApprovalPaymentEmail, sendMembershipIdCardCertificateEmail } from "@/lib/email";
 import type { MemberDoc } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -92,6 +92,24 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
             error instanceof Error
               ? `Member approved but email failed: ${error.message}`
               : "Member approved but email failed",
+          member: toResponse(updated),
+        },
+        { status: 207 },
+      );
+    }
+  }
+
+  if (body.action === "activate") {
+    try {
+      const requestUrl = req.headers.get("origin") || "http://localhost:3000";
+      await sendMembershipIdCardCertificateEmail(updated, requestUrl);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? `Member activated but email failed: ${error.message}`
+              : "Member activated but email failed",
           member: toResponse(updated),
         },
         { status: 207 },

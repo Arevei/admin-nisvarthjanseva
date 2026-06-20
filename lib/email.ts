@@ -14,6 +14,11 @@ import {
   safeText as safeReferralText,
   type ReferralAchievementMember,
 } from "@/lib/referral-achievements";
+import {
+  generateMembershipCertificatePdf,
+  generateMembershipIdCardPdf,
+  safeFileName as safeMembershipFileName,
+} from "@/lib/membership-documents";
 
 const membershipFees: Record<MemberDoc["membershipType"], number> = {
   general: 500,
@@ -224,5 +229,53 @@ export async function sendEnquiryReplyEmail(enquiry: { name: string; email: stri
         <p style="color: #52525b;">Thank you.</p>
       </div>
     `,
+  });
+}
+
+export async function sendMembershipIdCardCertificateEmail(member: MemberDoc, requestUrl: string) {
+  const fromAddress = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+  if (!fromAddress) {
+    throw new Error("SMTP_FROM or SMTP_USER is not configured.");
+  }
+
+  if (!member.email) {
+    throw new Error("Member email is not available.");
+  }
+
+  const certificatePdf = await generateMembershipCertificatePdf(member, requestUrl);
+  const idCardPdf = await generateMembershipIdCardPdf(member, requestUrl);
+  const transporter = getTransporter();
+
+  await transporter.sendMail({
+    from: fromAddress,
+    to: member.email,
+    subject: "Your Membership ID Card and Certificate - Nisvarthjan Seva Foundation",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #18181b;">
+        <h2 style="margin-bottom: 8px; color: #b0112f;">Nisvarthjan Seva Foundation</h2>
+        <p style="margin-top: 0; color: #71717a;">Congratulations! Your membership has been approved.</p>
+        <p>Dear ${member.name},</p>
+        <p>We are pleased to inform you that your membership has been approved by the foundation. Your membership ID card and certificate are attached with this email.</p>
+        <table style="border-collapse: collapse; margin: 16px 0;">
+          <tr><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">Membership ID</td><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">${member.membershipId}</td></tr>
+          <tr><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">Certificate No.</td><td style="padding: 6px 10px; border: 1px solid #e4e4e7;">${member.certificateNumber || "Not available"}</td></tr>
+        </table>
+        <p style="color: #71717a;">Please keep these documents safe for your records.</p>
+        <p style="color: #71717a;">Welcome to the Nisvarthjan Seva Foundation family!</p>
+      </div>
+    `,
+    attachments: [
+      {
+        filename: `${safeMembershipFileName(member.certificateNumber || member.membershipId)}.pdf`,
+        content: Buffer.from(certificatePdf),
+        contentType: "application/pdf",
+      },
+      {
+        filename: `${safeMembershipFileName(`${member.membershipId}-id-card`)}.pdf`,
+        content: Buffer.from(idCardPdf),
+        contentType: "application/pdf",
+      },
+    ],
   });
 }
