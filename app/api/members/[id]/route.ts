@@ -15,6 +15,7 @@ function toResponse(member: MemberDoc) {
     name: member.name,
     email: member.email,
     phone: member.phone,
+    photo: member.photo ?? null,
     dateOfBirth: member.dateOfBirth ?? null,
     address: member.address,
     city: member.city,

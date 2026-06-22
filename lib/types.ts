@@ -66,6 +66,7 @@ export interface MemberDoc {
     createdAt?: Date;
   };
   joinedAt: Date;
+  photo?: string | null;
 }
 
 export type ReferralAchievementTier = "silver" | "gold" | "platinum" | "diamond";

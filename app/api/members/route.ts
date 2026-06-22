@@ -13,6 +13,7 @@ function toResponse(member: MemberDoc, donationStats = { count: 0, amount: 0 }) 
     name: member.name,
     email: member.email,
     phone: member.phone,
+    photo: member.photo ?? null,
     dateOfBirth: member.dateOfBirth ?? null,
     address: member.address,
     city: member.city,

@@ -157,6 +157,7 @@ function memberToRecord(member: MemberDoc): MemberDocumentRecord {
     certificateNumber: member.certificateNumber,
     joinedAt: member.joinedAt,
     payment: member.payment,
+    photo: member.photo,
   };
 }
 
@@ -263,7 +264,32 @@ export async function generateMembershipIdCardPdf(member: MemberDoc, requestUrl:
 
   doc.setFillColor(190, 0, 39);
   doc.roundedRect(14, 50, 120, 120, 3, 3);
-  drawPhotoPlaceholder(doc, 44, 68, 60);
+
+  // Photo area - either show uploaded photo or placeholder
+  const photoBoxX = 44;
+  const photoBoxY = 68;
+  const photoBoxSize = 60;
+
+  if (record.photo) {
+    try {
+      // Fetch and add the member's uploaded photo
+      const photoResponse = await fetch(record.photo, { cache: 'no-store' });
+      if (!photoResponse.ok) {
+        throw new Error(`Failed to fetch photo: ${photoResponse.status}`);
+      }
+      const photoBuffer = await photoResponse.arrayBuffer();
+      const base64 = Buffer.from(photoBuffer).toString("base64");
+      const contentType = photoResponse.headers.get("content-type") || "image/jpeg";
+      const dataUrl = `data:${contentType};base64,${base64}`;
+      doc.addImage(dataUrl, "JPEG", photoBoxX + 1, photoBoxY + 1, photoBoxSize - 2, photoBoxSize - 2, undefined, "MEDIUM");
+    } catch (error) {
+      console.error("Failed to add photo to ID card:", error);
+      // If photo fails to load, show placeholder
+      drawPhotoPlaceholder(doc, photoBoxX, photoBoxY, photoBoxSize);
+    }
+  } else {
+    drawPhotoPlaceholder(doc, photoBoxX, photoBoxY, photoBoxSize);
+  }
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
