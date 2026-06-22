@@ -85,7 +85,8 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 
   if (body.action === "approve") {
     try {
-      await sendMembershipApprovalPaymentEmail(updated);
+      const requestUrl = req.headers.get("origin") || "http://localhost:3000";
+      await sendMembershipApprovalPaymentEmail(updated, requestUrl);
     } catch (error) {
       return NextResponse.json(
         {

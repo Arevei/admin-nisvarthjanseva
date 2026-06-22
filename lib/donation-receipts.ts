@@ -124,13 +124,13 @@ export async function generateDonationReceiptPdf(donation: DonationDoc, requestU
   const verifyUrl = `${getVerificationBaseUrl(requestUrl)}/verify?certificateNumber=${encodeURIComponent(donation.receiptNumber)}&documentType=donation-receipt`;
   const qrDataUrl = await QRCode.toDataURL(verifyUrl, { errorCorrectionLevel: "M", margin: 1, width: 180 });
 
-  const cardTop = 36;
-  const cardHeight = 235;
+  const cardTop = 42;
+  const cardHeight = 230;
 
   doc.setFillColor(248, 250, 252);
   doc.rect(0, 0, 210, 297, "F");
   doc.setFillColor(190, 0, 39);
-  doc.rect(0, 0, 210, 44, "F");
+  doc.rect(0, 0, 210, 48, "F");
   doc.setFillColor(255, 255, 255);
   doc.roundedRect(14, cardTop, 182, cardHeight, 3, 3, "F");
   doc.setDrawColor(228, 228, 231);
@@ -150,128 +150,90 @@ export async function generateDonationReceiptPdf(donation: DonationDoc, requestU
   doc.setFontSize(8);
   doc.text("Generated for income tax deduction under Section 80G", 188, 26, { align: "right" });
 
+  if (hindiFont) {
+    doc.setFont("TiroDevanagari", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text(HINDI_VERSE, 105, 36, { align: "center" });
+  }
+
   doc.setFillColor(255, 245, 247);
-  doc.roundedRect(22, 50, 166, 18, 2, 2, "F");
+  doc.roundedRect(22, 48, 166, 14, 2, 2, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7);
   doc.setTextColor(190, 0, 39);
-  doc.text("RECEIPT NO.", 30, 51);
-  doc.text("PAID ON", 96, 51);
-  doc.text("STATUS", 150, 51);
-  doc.setFontSize(9);
+  doc.text("RECEIPT NO.", 30, 52);
+  doc.text("PAID ON", 96, 52);
+  doc.text("STATUS", 150, 52);
+  doc.setFontSize(8.5);
   doc.setTextColor(24, 24, 27);
   doc.text(donation.receiptNumber, 30, 57);
   doc.text(formatDate(paidAt), 96, 57);
   doc.text((donation.status || donation.payment?.status || "paid").toUpperCase(), 150, 57);
 
   doc.setFillColor(24, 24, 27);
-  doc.roundedRect(22, 72, 76, 28, 2, 2, "F");
+  doc.roundedRect(22, 66, 76, 22, 2, 2, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7);
   doc.setTextColor(212, 212, 216);
-  doc.text("AMOUNT RECEIVED", 30, 81);
-  doc.setFontSize(18);
+  doc.text("AMOUNT RECEIVED", 30, 73);
+  doc.setFontSize(16);
   doc.setTextColor(255, 255, 255);
-  doc.text(`INR ${donation.amount.toLocaleString("en-IN")}`, 30, 94);
+  doc.text(`INR ${donation.amount.toLocaleString("en-IN")}`, 30, 83);
 
   doc.setDrawColor(228, 228, 231);
-  doc.roundedRect(106, 72, 82, 28, 2, 2);
-  drawInfoRow(doc, "Purpose", normalizeDonationPurpose(donation.purpose), 114, 81, 62);
+  doc.roundedRect(106, 66, 82, 22, 2, 2);
+  drawInfoRow(doc, "Purpose", normalizeDonationPurpose(donation.purpose), 114, 73, 62);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.setTextColor(190, 0, 39);
-  doc.text("Donor Details", 22, 114);
+  doc.text("Donor Details", 22, 102);
   doc.setDrawColor(244, 63, 94);
-  doc.line(22, 117, 188, 117);
-  drawInfoRow(doc, "Name", safeText(donation.donorName), 22, 126, 78);
-  drawInfoRow(doc, "PAN", safeText(donation.donorPan), 112, 126, 60);
-  drawInfoRow(doc, "Email", safeText(donation.donorEmail), 22, 141, 78);
-  drawInfoRow(doc, "Phone", safeText(donation.donorPhone), 112, 141, 60);
-  drawInfoRow(doc, "Address", safeText(donation.donorAddress), 22, 156, 150);
+  doc.line(22, 104, 188, 104);
+  drawInfoRow(doc, "Name", safeText(donation.donorName), 22, 112, 78);
+  drawInfoRow(doc, "PAN", safeText(donation.donorPan), 112, 112, 60);
+  drawInfoRow(doc, "Email", safeText(donation.donorEmail), 22, 124, 78);
+  drawInfoRow(doc, "Phone", safeText(donation.donorPhone), 112, 124, 60);
+  drawInfoRow(doc, "Address", safeText(donation.donorAddress), 22, 136, 150);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.setTextColor(190, 0, 39);
-  doc.text("Payment & 80G Details", 22, 176);
+  doc.text("Payment & 80G Details", 22, 154);
   doc.setDrawColor(244, 63, 94);
-  doc.line(22, 179, 188, 179);
-  drawInfoRow(doc, "Payment Mode", paymentMode.replace(/[_-]+/g, " ").toUpperCase(), 22, 186, 60);
-  drawInfoRow(doc, "Payment Ref.", paymentReference, 92, 186, 92);
-  drawInfoRow(doc, "Organization PAN", safeText(taxExemption.ngoPan), 22, 199, 60);
-  drawInfoRow(doc, "80G Reg. No.", safeText(taxExemption.registrationNumber), 92, 199, 92);
-  drawInfoRow(doc, "80G Validity", safeText(taxExemption.validity), 22, 212, 60);
+  doc.line(22, 156, 188, 156);
+  drawInfoRow(doc, "Payment Mode", paymentMode.replace(/[_-]+/g, " ").toUpperCase(), 22, 163, 60);
+  drawInfoRow(doc, "Payment Ref.", paymentReference, 92, 163, 92);
+  drawInfoRow(doc, "Organization PAN", safeText(taxExemption.ngoPan), 22, 174, 60);
+  drawInfoRow(doc, "80G Reg. No.", safeText(taxExemption.registrationNumber), 92, 174, 92);
+  drawInfoRow(doc, "80G Validity", safeText(taxExemption.validity), 22, 185, 60);
 
   doc.setDrawColor(244, 63, 94);
   doc.setLineWidth(0.2);
-  doc.roundedRect(108, 219, 78, 32, 2, 2);
+  doc.roundedRect(108, 192, 78, 30, 2, 2);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(113, 113, 122);
-  doc.text(doc.splitTextToSize(`Registered Address: ${safeText(taxExemption.address)}`, 82).slice(0, 2), 22, 235);
-  doc.text("This computer-generated receipt is valid without a handwritten signature.", 22, 254);
+  doc.text(doc.splitTextToSize(`Registered Address: ${safeText(taxExemption.address)}`, 82).slice(0, 2), 22, 205);
+  doc.text("This computer-generated receipt is valid without a handwritten signature.", 22, 222);
 
-  doc.addImage(qrDataUrl, "PNG", 158, 223, 20, 20);
+  doc.addImage(qrDataUrl, "PNG", 158, 196, 18, 18);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(6);
   doc.setTextColor(190, 0, 39);
-  doc.text("SCAN TO VERIFY", 168, 248, { align: "center" });
+  doc.text("SCAN TO VERIFY", 167, 218, { align: "center" });
 
-  drawDigitalStamp(doc, 128, 235);
+  drawDigitalStamp(doc, 126, 204);
 
   // ============================================
   // BIG & BEAUTIFUL HINDI VERSE AT VERY END
   // ============================================
-  // if (hindiFont) {
-  //   doc.addPage();
-  //   doc.setFillColor(255, 255, 255);
-  //   doc.rect(0, 0, 210, 297, "F");
-
-  //   // Add decorative border
-  //   doc.setDrawColor(190, 0, 39);
-  //   doc.setLineWidth(1.5);
-  //   doc.roundedRect(15, 15, 180, 267, 5, 5);
-  //   doc.setLineWidth(0.5);
-  //   doc.roundedRect(18, 18, 174, 261, 4, 4);
-
-  //   // Add decorative line at top
-  //   doc.setFillColor(190, 0, 39);
-  //   doc.rect(30, 35, 150, 2, "F");
-
-  //   // Render the beautiful Hindi verse
-  //   doc.setFont("TiroDevanagari", "normal");
-  //   doc.setFontSize(22);
-  //   doc.setTextColor(190, 0, 39); // Beautiful primary red
-  //   doc.text(HINDI_VERSE, 105, 130, { align: "center", maxWidth: 160 });
-
-  //   // Add decorative line below verse
-  //   doc.setFillColor(190, 0, 39);
-  //   doc.rect(30, 155, 150, 2, "F");
-
-  //   // Add English translation
-  //   doc.setFont("helvetica", "italic");
-  //   doc.setFontSize(10);
-  //   doc.setTextColor(113, 113, 122);
-  //   doc.text("I take an oath on Mother Janaki, the messenger of Ram,", 105, 175, { align: "center" });
-  //   doc.text("for selfless service of the compassionate one.", 105, 183, { align: "center" });
-
-  //   // Add foundation name
-  //   doc.setFont("helvetica", "bold");
-  //   doc.setFontSize(12);
-  //   doc.setTextColor(24, 24, 27);
-  //   doc.text("— Nisvarthjan Seva Foundation", 105, 210, { align: "center" });
-
-  //   // Add decorative element
-  //   doc.setFillColor(244, 63, 94);
-  //   doc.rect(85, 220, 40, 1, "F");
-
-  //   // Add tagline
-  //   doc.setFont("helvetica", "normal");
-  //   doc.setFontSize(9);
-  //   doc.setTextColor(113, 113, 122);
-  //   doc.text("Serving Humanity, Transforming Lives", 105, 235, { align: "center" });
-  // }
+  if (hindiFont) {
+    // We already added the verse at the top of first page.
+    // No second page needed.
+  }
 
   return doc.output("arraybuffer");
 }
