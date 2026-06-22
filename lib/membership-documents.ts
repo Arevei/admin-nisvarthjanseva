@@ -271,23 +271,28 @@ export async function generateMembershipIdCardPdf(member: MemberDoc, requestUrl:
   const photoBoxSize = 60;
 
   if (record.photo) {
+    console.log("[ID Card] Attempting to load photo from:", record.photo);
     try {
       // Fetch and add the member's uploaded photo
       const photoResponse = await fetch(record.photo, { cache: 'no-store' });
+      console.log("[ID Card] Photo fetch status:", photoResponse.status);
       if (!photoResponse.ok) {
         throw new Error(`Failed to fetch photo: ${photoResponse.status}`);
       }
       const photoBuffer = await photoResponse.arrayBuffer();
       const base64 = Buffer.from(photoBuffer).toString("base64");
-      const contentType = photoResponse.headers.get("content-type") || "image/jpeg";
+      const contentType = photoResponse.headers.get("content-type") || "image/png";
+      console.log("[ID Card] Photo content-type:", contentType, "base64 length:", base64.length);
       const dataUrl = `data:${contentType};base64,${base64}`;
-      doc.addImage(dataUrl, "JPEG", photoBoxX + 1, photoBoxY + 1, photoBoxSize - 2, photoBoxSize - 2, undefined, "MEDIUM");
+      doc.addImage(dataUrl, "PNG", photoBoxX + 1, photoBoxY + 1, photoBoxSize - 2, photoBoxSize - 2, undefined, "MEDIUM");
+      console.log("[ID Card] Photo added successfully");
     } catch (error) {
-      console.error("Failed to add photo to ID card:", error);
+      console.error("[ID Card] Failed to add photo to ID card:", error);
       // If photo fails to load, show placeholder
       drawPhotoPlaceholder(doc, photoBoxX, photoBoxY, photoBoxSize);
     }
   } else {
+    console.log("[ID Card] No photo URL in record - using placeholder");
     drawPhotoPlaceholder(doc, photoBoxX, photoBoxY, photoBoxSize);
   }
 
@@ -311,4 +316,4 @@ export async function generateMembershipIdCardPdf(member: MemberDoc, requestUrl:
   doc.text(location, 74.25, 204, { align: "center" });
 
   return doc.output("arraybuffer");
-}
+} 

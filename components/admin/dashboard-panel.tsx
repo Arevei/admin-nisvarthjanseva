@@ -172,6 +172,7 @@ function statusClass(status: string) {
   if (status === "revoked") return "bg-rose-100 text-rose-800";
   if (status === "created") return "bg-amber-100 text-amber-800";
   if (status === "active") return "bg-emerald-100 text-emerald-800";
+  if (status === "approval_pending") return "bg-amber-100 text-amber-800";
   if (status === "payment_pending") return "bg-amber-100 text-amber-800";
   if (status === "pending") return "bg-blue-100 text-blue-800";
   if (status === "rejected") return "bg-rose-100 text-rose-800";
@@ -1398,7 +1399,7 @@ export function DashboardPanel({
               </button>
             </div>
             <p className="mt-1 text-sm text-zinc-500">
-              Approve new registrations, automatically send payment QR email, and activate after manual payment confirmation.
+              Approve manual registrations, activate paid Razorpay memberships, and send certificates after final admin approval.
             </p>
           </div>
 
@@ -1439,14 +1440,14 @@ export function DashboardPanel({
                         Approve & Send QR
                       </button>
                     )}
-                    {member.status === "payment_pending" && (
+                    {(member.status === "payment_pending" || member.status === "approval_pending") && (
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => memberAction(member.id, "activate")}
                         className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
                       >
-                        Activate (Payment Received)
+                        Activate & Send Documents
                       </button>
                     )}
                     {member.status !== "rejected" && (
