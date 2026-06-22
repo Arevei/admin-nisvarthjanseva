@@ -105,7 +105,7 @@ function normalizeDonationPurpose(value: string): string {
 
 export async function generateDonationReceiptPdf(donation: DonationDoc, requestUrl: string) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  
+
   // Load and register Hindi font for Devanagari text rendering
   const hindiFont = getHindiFont();
   if (hindiFont) {
@@ -116,7 +116,7 @@ export async function generateDonationReceiptPdf(donation: DonationDoc, requestU
       console.warn("Failed to register Hindi font:", error);
     }
   }
-  
+
   const paidAt = donation.payment?.paidAt || donation.createdAt;
   const paymentMode = donation.payment?.mode || "manual";
   const paymentReference = donation.payment?.paymentId || donation.payment?.orderId || donation.payment?.receipt || donation.receiptNumber;
@@ -223,55 +223,55 @@ export async function generateDonationReceiptPdf(donation: DonationDoc, requestU
   // ============================================
   // BIG & BEAUTIFUL HINDI VERSE AT VERY END
   // ============================================
-  if (hindiFont) {
-    doc.addPage();
-    doc.setFillColor(255, 255, 255);
-    doc.rect(0, 0, 210, 297, "F");
-    
-    // Add decorative border
-    doc.setDrawColor(190, 0, 39);
-    doc.setLineWidth(1.5);
-    doc.roundedRect(15, 15, 180, 267, 5, 5);
-    doc.setLineWidth(0.5);
-    doc.roundedRect(18, 18, 174, 261, 4, 4);
-    
-    // Add decorative line at top
-    doc.setFillColor(190, 0, 39);
-    doc.rect(30, 35, 150, 2, "F");
-    
-    // Render the beautiful Hindi verse
-    doc.setFont("TiroDevanagari", "normal");
-    doc.setFontSize(22);
-    doc.setTextColor(190, 0, 39); // Beautiful primary red
-    doc.text(HINDI_VERSE, 105, 130, { align: "center", maxWidth: 160 });
-    
-    // Add decorative line below verse
-    doc.setFillColor(190, 0, 39);
-    doc.rect(30, 155, 150, 2, "F");
-    
-    // Add English translation
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(10);
-    doc.setTextColor(113, 113, 122);
-    doc.text("I take an oath on Mother Janaki, the messenger of Ram,", 105, 175, { align: "center" });
-    doc.text("for selfless service of the compassionate one.", 105, 183, { align: "center" });
-    
-    // Add foundation name
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(24, 24, 27);
-    doc.text("— Nisvarthjan Seva Foundation", 105, 210, { align: "center" });
-    
-    // Add decorative element
-    doc.setFillColor(244, 63, 94);
-    doc.rect(85, 220, 40, 1, "F");
-    
-    // Add tagline
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(113, 113, 122);
-    doc.text("Serving Humanity, Transforming Lives", 105, 235, { align: "center" });
-  }
+  // if (hindiFont) {
+  //   doc.addPage();
+  //   doc.setFillColor(255, 255, 255);
+  //   doc.rect(0, 0, 210, 297, "F");
+
+  //   // Add decorative border
+  //   doc.setDrawColor(190, 0, 39);
+  //   doc.setLineWidth(1.5);
+  //   doc.roundedRect(15, 15, 180, 267, 5, 5);
+  //   doc.setLineWidth(0.5);
+  //   doc.roundedRect(18, 18, 174, 261, 4, 4);
+
+  //   // Add decorative line at top
+  //   doc.setFillColor(190, 0, 39);
+  //   doc.rect(30, 35, 150, 2, "F");
+
+  //   // Render the beautiful Hindi verse
+  //   doc.setFont("TiroDevanagari", "normal");
+  //   doc.setFontSize(22);
+  //   doc.setTextColor(190, 0, 39); // Beautiful primary red
+  //   doc.text(HINDI_VERSE, 105, 130, { align: "center", maxWidth: 160 });
+
+  //   // Add decorative line below verse
+  //   doc.setFillColor(190, 0, 39);
+  //   doc.rect(30, 155, 150, 2, "F");
+
+  //   // Add English translation
+  //   doc.setFont("helvetica", "italic");
+  //   doc.setFontSize(10);
+  //   doc.setTextColor(113, 113, 122);
+  //   doc.text("I take an oath on Mother Janaki, the messenger of Ram,", 105, 175, { align: "center" });
+  //   doc.text("for selfless service of the compassionate one.", 105, 183, { align: "center" });
+
+  //   // Add foundation name
+  //   doc.setFont("helvetica", "bold");
+  //   doc.setFontSize(12);
+  //   doc.setTextColor(24, 24, 27);
+  //   doc.text("— Nisvarthjan Seva Foundation", 105, 210, { align: "center" });
+
+  //   // Add decorative element
+  //   doc.setFillColor(244, 63, 94);
+  //   doc.rect(85, 220, 40, 1, "F");
+
+  //   // Add tagline
+  //   doc.setFont("helvetica", "normal");
+  //   doc.setFontSize(9);
+  //   doc.setTextColor(113, 113, 122);
+  //   doc.text("Serving Humanity, Transforming Lives", 105, 235, { align: "center" });
+  // }
 
   return doc.output("arraybuffer");
 }
