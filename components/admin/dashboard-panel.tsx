@@ -2361,11 +2361,11 @@ export function DashboardPanel({
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">Details (English)</label>
-                <textarea value={galleryForm.detailsEn} onChange={(e) => setGalleryForm((p) => ({ ...p, detailsEn: e.target.value }))} className="h-20 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+                <RichTextEditor value={galleryForm.detailsEn} onChange={(detailsEn) => setGalleryForm((p) => ({ ...p, detailsEn }))} placeholder="Write activity details..." />
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">Details (Hindi)</label>
-                <textarea value={galleryForm.detailsHi} onChange={(e) => setGalleryForm((p) => ({ ...p, detailsHi: e.target.value }))} className="h-20 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+                <RichTextEditor value={galleryForm.detailsHi} onChange={(detailsHi) => setGalleryForm((p) => ({ ...p, detailsHi }))} placeholder="Write activity details in Hindi..." />
               </div>
             </div>
 
@@ -2416,7 +2416,7 @@ export function DashboardPanel({
                       </div>
                       <h3 className="text-base font-semibold text-zinc-900">{item.caption || "Untitled activity post"}</h3>
                       {item.captionHindi && <p className="mt-1 text-sm text-zinc-500">{item.captionHindi}</p>}
-                      {item.detailsEn && <p className="mt-2 line-clamp-2 text-sm text-zinc-600">{item.detailsEn}</p>}
+                      {item.detailsEn && <p className="mt-2 line-clamp-2 text-sm text-zinc-600">{stripHtml(item.detailsEn)}</p>}
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button
                           type="button"
