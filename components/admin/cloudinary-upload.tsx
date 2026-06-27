@@ -6,9 +6,23 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   label: string;
+  accept?: string;
+  uploadText?: string;
+  chooseText?: string;
 };
 
-export function CloudinaryUpload({ value, onChange, label }: Props) {
+function isVideoUrl(value: string) {
+  return /\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(value) || /\/video\/upload\//i.test(value);
+}
+
+export function CloudinaryUpload({
+  value,
+  onChange,
+  label,
+  accept = "image/*",
+  uploadText = "Upload image to Cloudinary",
+  chooseText = "Choose Image",
+}: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
@@ -45,20 +59,20 @@ export function CloudinaryUpload({ value, onChange, label }: Props) {
       <label className="block text-sm font-medium text-zinc-700">{label}</label>
       <div className="rounded-xl border border-dashed border-rose-300 bg-rose-50 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs text-zinc-600">Upload image to Cloudinary</span>
+          <span className="text-xs text-zinc-600">{uploadText}</span>
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
             className="rounded-md border border-rose-400 bg-white px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
             disabled={isUploading}
           >
-            {isUploading ? "Uploading..." : "Choose Image"}
+            {isUploading ? "Uploading..." : chooseText}
           </button>
         </div>
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept={accept}
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -74,9 +88,11 @@ export function CloudinaryUpload({ value, onChange, label }: Props) {
         className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-rose-500"
       />
 
-      {value && (
+      {value && isVideoUrl(value) ? (
+        <video src={value} controls className="h-44 w-full rounded-lg border border-zinc-200 bg-black object-contain" />
+      ) : value ? (
         <img src={value} alt="Uploaded preview" className="h-44 w-full rounded-lg border border-zinc-200 object-cover" />
-      )}
+      ) : null}
 
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>

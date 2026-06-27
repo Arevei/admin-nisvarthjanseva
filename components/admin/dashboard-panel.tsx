@@ -224,6 +224,14 @@ function normalizeGalleryImages(item: { imageUrl?: string | null; imageUrls?: st
   ).slice(0, 4);
 }
 
+function isVideoUrl(value: string) {
+  return /\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(value) || /\/video\/upload\//i.test(value);
+}
+
+function galleryMediaLabel(index: number) {
+  return index === 0 ? "Cover Image (required)" : `Media ${index + 1}: image or video`;
+}
+
 function localDateKey(date: Date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
@@ -326,7 +334,7 @@ export function DashboardPanel({
   });
 
   const [galleryForm, setGalleryForm] = useState({
-    imageUrls: ["", "", "", ""],
+    imageUrls: [""],
     caption: "",
     captionHindi: "",
     detailsEn: "",
@@ -902,7 +910,7 @@ export function DashboardPanel({
 
   const resetGalleryForm = () => {
     setGalleryForm({
-      imageUrls: ["", "", "", ""],
+      imageUrls: [""],
       caption: "",
       captionHindi: "",
       detailsEn: "",
@@ -2273,9 +2281,30 @@ export function DashboardPanel({
               )}
             </div>
 
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="mt-4 space-y-3">
               {galleryForm.imageUrls.map((imageUrl, index) => (
-                <div key={index} className="rounded-xl border border-zinc-200 p-3">
+                <div key={index} className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                      {galleryMediaLabel(index)}
+                    </span>
+                    {galleryForm.imageUrls.length > 1 && (
+                      <button
+                        type="button"
+                        title={`Remove ${galleryMediaLabel(index)}`}
+                        aria-label={`Remove ${galleryMediaLabel(index)}`}
+                        onClick={() =>
+                          setGalleryForm((previous) => ({
+                            ...previous,
+                            imageUrls: previous.imageUrls.filter((_, mediaIndex) => mediaIndex !== index),
+                          }))
+                        }
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-300 bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                      >
+                        <span className="text-base leading-none">x</span>
+                      </button>
+                    )}
+                  </div>
                   <CloudinaryUpload
                     value={imageUrl}
                     onChange={(nextImageUrl) =>
@@ -2285,28 +2314,29 @@ export function DashboardPanel({
                         return { ...previous, imageUrls };
                       })
                     }
-                    label={`Activity Post Image ${index + 1}${index === 0 ? " (required)" : ""}`}
+                    label={galleryMediaLabel(index)}
+                    accept={index === 0 ? "image/*" : "image/*,video/*"}
+                    uploadText={index === 0 ? "Upload cover image to Cloudinary" : "Upload image or video to Cloudinary"}
+                    chooseText={index === 0 ? "Choose Image" : "Choose Media"}
                   />
-                  {imageUrl && index > 0 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setGalleryForm((previous) => {
-                          const imageUrls = [...previous.imageUrls];
-                          imageUrls[index] = "";
-                          return { ...previous, imageUrls };
-                        })
-                      }
-                      className="mt-2 rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
-                    >
-                      Remove image
-                    </button>
-                  )}
                 </div>
               ))}
-              <p className="text-xs text-zinc-500 md:col-span-2">
-                Add up to 4 images. The first image is used as the cover, and the public site opens all images as a carousel.
-              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                {galleryForm.imageUrls.length < 4 && (
+                  <button
+                    type="button"
+                    title="Add media"
+                    aria-label="Add media"
+                    onClick={() => setGalleryForm((previous) => ({ ...previous, imageUrls: [...previous.imageUrls, ""] }))}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                  >
+                    <span className="text-xl leading-none">+</span>
+                  </button>
+                )}
+                <p className="text-xs text-zinc-500">
+                  Add up to 4 media items. The first image is the cover; media 2, 3 and 4 can be images or videos.
+                </p>
+              </div>
             </div>
 
             <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -2359,9 +2389,15 @@ export function DashboardPanel({
                     <div className="relative h-44 bg-zinc-100 sm:h-full">
                       {itemImages[0] ? (
                         <>
-                          <img src={itemImages[0]} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full scale-110 object-cover blur-lg" />
-                          <div className="absolute inset-0 bg-black/20" />
-                          <img src={itemImages[0]} alt={item.caption || "Activity post image"} className="absolute inset-0 h-full w-full object-contain p-2" />
+                          {isVideoUrl(itemImages[0]) ? (
+                            <video src={itemImages[0]} className="absolute inset-0 h-full w-full bg-black object-contain p-2" muted />
+                          ) : (
+                            <>
+                              <img src={itemImages[0]} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full scale-110 object-cover blur-lg" />
+                              <div className="absolute inset-0 bg-black/20" />
+                              <img src={itemImages[0]} alt={item.caption || "Activity post image"} className="absolute inset-0 h-full w-full object-contain p-2" />
+                            </>
+                          )}
                           {itemImages.length > 1 && (
                             <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-xs font-semibold text-white">
                               1/{itemImages.length}
@@ -2376,7 +2412,7 @@ export function DashboardPanel({
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">{item.category}</span>
                         <span className="text-xs text-zinc-500">{new Date(item.createdAt).toLocaleDateString("en-IN")}</span>
-                        {itemImages.length > 1 && <span className="text-xs text-zinc-500">{itemImages.length} images</span>}
+                        {itemImages.length > 1 && <span className="text-xs text-zinc-500">{itemImages.length} media</span>}
                       </div>
                       <h3 className="text-base font-semibold text-zinc-900">{item.caption || "Untitled activity post"}</h3>
                       {item.captionHindi && <p className="mt-1 text-sm text-zinc-500">{item.captionHindi}</p>}
@@ -2385,7 +2421,7 @@ export function DashboardPanel({
                         <button
                           type="button"
                           onClick={() => {
-                            const imageUrls = [...itemImages, "", "", "", ""].slice(0, 4);
+                            const imageUrls = itemImages.length > 0 ? itemImages : [""];
                             setEditingGalleryId(item.id);
                             setGalleryForm({
                               imageUrls,

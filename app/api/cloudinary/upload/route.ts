@@ -4,7 +4,8 @@ import { getSession } from "@/lib/session";
 
 export const runtime = "nodejs";
 
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_VIDEO_SIZE_BYTES = 25 * 1024 * 1024;
 
 function configureCloudinary() {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
@@ -38,12 +39,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    if (!file.type.startsWith("image/")) {
-      return NextResponse.json({ error: "Only image files are allowed" }, { status: 400 });
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
+
+    if (!isImage && !isVideo) {
+      return NextResponse.json({ error: "Only image and video files are allowed" }, { status: 400 });
     }
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
+    if (isImage && file.size > MAX_IMAGE_SIZE_BYTES) {
       return NextResponse.json({ error: "Image must be 5MB or less" }, { status: 400 });
+    }
+
+    if (isVideo && file.size > MAX_VIDEO_SIZE_BYTES) {
+      return NextResponse.json({ error: "Video must be 25MB or less" }, { status: 400 });
     }
 
     const uploadFolder = process.env.CLOUDINARY_UPLOAD_FOLDER || "nisvarthjan";
@@ -53,12 +61,13 @@ export async function POST(req: NextRequest) {
 
     const result = await cloudinary.uploader.upload(dataUri, {
       folder: uploadFolder,
-      resource_type: "image",
+      resource_type: isVideo ? "video" : "image",
     });
 
     return NextResponse.json({
       url: result.secure_url,
       publicId: result.public_id,
+      resourceType: result.resource_type,
       width: result.width,
       height: result.height,
     });

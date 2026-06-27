@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json()) as Partial<GalleryDoc>;
   const imageUrls = normalizeImageUrls(body);
   if (imageUrls.length === 0 || !body.category) {
-    return NextResponse.json({ error: "At least one image and category are required" }, { status: 400 });
+    return NextResponse.json({ error: "At least one cover image and category are required" }, { status: 400 });
   }
 
   const item: GalleryDoc = {
