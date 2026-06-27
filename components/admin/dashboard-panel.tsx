@@ -116,6 +116,7 @@ type DonationItem = {
 type GalleryItem = {
   id: number;
   imageUrl: string;
+  imageUrls?: string[];
   caption: string | null;
   captionHindi: string | null;
   detailsEn: string | null;
@@ -211,6 +212,16 @@ function dateInputValue(value: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().slice(0, 10);
+}
+
+function normalizeGalleryImages(item: { imageUrl?: string | null; imageUrls?: string[] | null }) {
+  return Array.from(
+    new Set(
+      [...(item.imageUrls ?? []), item.imageUrl]
+        .map((imageUrl) => imageUrl?.trim())
+        .filter((imageUrl): imageUrl is string => Boolean(imageUrl)),
+    ),
+  ).slice(0, 4);
 }
 
 function localDateKey(date: Date) {
@@ -315,7 +326,7 @@ export function DashboardPanel({
   });
 
   const [galleryForm, setGalleryForm] = useState({
-    imageUrl: "",
+    imageUrls: ["", "", "", ""],
     caption: "",
     captionHindi: "",
     detailsEn: "",
@@ -891,7 +902,7 @@ export function DashboardPanel({
 
   const resetGalleryForm = () => {
     setGalleryForm({
-      imageUrl: "",
+      imageUrls: ["", "", "", ""],
       caption: "",
       captionHindi: "",
       detailsEn: "",
@@ -902,8 +913,9 @@ export function DashboardPanel({
   };
 
   const submitGallery = async () => {
-    if (!galleryForm.imageUrl.trim()) {
-      setError("Activity post image is required.");
+    const imageUrls = galleryForm.imageUrls.map((imageUrl) => imageUrl.trim()).filter(Boolean).slice(0, 4);
+    if (imageUrls.length === 0) {
+      setError("At least one activity post image is required.");
       return;
     }
 
@@ -914,7 +926,7 @@ export function DashboardPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(galleryForm),
+        body: JSON.stringify({ ...galleryForm, imageUrl: imageUrls[0], imageUrls }),
       });
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };
@@ -932,8 +944,9 @@ export function DashboardPanel({
 
   const updateGallery = async () => {
     if (!editingGalleryId) return;
-    if (!galleryForm.imageUrl.trim()) {
-      setError("Activity post image is required.");
+    const imageUrls = galleryForm.imageUrls.map((imageUrl) => imageUrl.trim()).filter(Boolean).slice(0, 4);
+    if (imageUrls.length === 0) {
+      setError("At least one activity post image is required.");
       return;
     }
 
@@ -944,7 +957,7 @@ export function DashboardPanel({
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(galleryForm),
+        body: JSON.stringify({ ...galleryForm, imageUrl: imageUrls[0], imageUrls }),
       });
       if (!response.ok) {
         const payload = (await response.json()) as { error?: string };
@@ -2260,8 +2273,40 @@ export function DashboardPanel({
               )}
             </div>
 
-            <div className="mt-4">
-              <CloudinaryUpload value={galleryForm.imageUrl} onChange={(imageUrl) => setGalleryForm((p) => ({ ...p, imageUrl }))} label="Activity Post Image" />
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {galleryForm.imageUrls.map((imageUrl, index) => (
+                <div key={index} className="rounded-xl border border-zinc-200 p-3">
+                  <CloudinaryUpload
+                    value={imageUrl}
+                    onChange={(nextImageUrl) =>
+                      setGalleryForm((previous) => {
+                        const imageUrls = [...previous.imageUrls];
+                        imageUrls[index] = nextImageUrl;
+                        return { ...previous, imageUrls };
+                      })
+                    }
+                    label={`Activity Post Image ${index + 1}${index === 0 ? " (required)" : ""}`}
+                  />
+                  {imageUrl && index > 0 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setGalleryForm((previous) => {
+                          const imageUrls = [...previous.imageUrls];
+                          imageUrls[index] = "";
+                          return { ...previous, imageUrls };
+                        })
+                      }
+                      className="mt-2 rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+                    >
+                      Remove image
+                    </button>
+                  )}
+                </div>
+              ))}
+              <p className="text-xs text-zinc-500 md:col-span-2">
+                Add up to 4 images. The first image is used as the cover, and the public site opens all images as a carousel.
+              </p>
             </div>
 
             <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -2305,54 +2350,69 @@ export function DashboardPanel({
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            {gallery.map((item) => (
-              <div key={item.id} className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
-                <div className="grid gap-0 sm:grid-cols-[180px_1fr]">
-                  <div className="h-44 bg-zinc-100 sm:h-full">
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.caption || "Activity post image"} className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-sm text-zinc-500">No image</div>
-                    )}
-                  </div>
-                  <div className="p-4">
-                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">{item.category}</span>
-                      <span className="text-xs text-zinc-500">{new Date(item.createdAt).toLocaleDateString("en-IN")}</span>
+            {gallery.map((item) => {
+              const itemImages = normalizeGalleryImages(item);
+
+              return (
+                <div key={item.id} className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+                  <div className="grid gap-0 sm:grid-cols-[180px_1fr]">
+                    <div className="relative h-44 bg-zinc-100 sm:h-full">
+                      {itemImages[0] ? (
+                        <>
+                          <img src={itemImages[0]} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full scale-110 object-cover blur-lg" />
+                          <div className="absolute inset-0 bg-black/20" />
+                          <img src={itemImages[0]} alt={item.caption || "Activity post image"} className="absolute inset-0 h-full w-full object-contain p-2" />
+                          {itemImages.length > 1 && (
+                            <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-xs font-semibold text-white">
+                              1/{itemImages.length}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-sm text-zinc-500">No image</div>
+                      )}
                     </div>
-                    <h3 className="text-base font-semibold text-zinc-900">{item.caption || "Untitled activity post"}</h3>
-                    {item.captionHindi && <p className="mt-1 text-sm text-zinc-500">{item.captionHindi}</p>}
-                    {item.detailsEn && <p className="mt-2 line-clamp-2 text-sm text-zinc-600">{item.detailsEn}</p>}
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingGalleryId(item.id);
-                          setGalleryForm({
-                            imageUrl: item.imageUrl,
-                            caption: item.caption || "",
-                            captionHindi: item.captionHindi || "",
-                            detailsEn: item.detailsEn || "",
-                            detailsHi: item.detailsHi || "",
-                            category: item.category,
-                          });
-                        }}
-                        className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeGallery(item.id)}
-                        className="rounded-md border border-red-300 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
-                      >
-                        Delete
-                      </button>
+                    <div className="p-4">
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700">{item.category}</span>
+                        <span className="text-xs text-zinc-500">{new Date(item.createdAt).toLocaleDateString("en-IN")}</span>
+                        {itemImages.length > 1 && <span className="text-xs text-zinc-500">{itemImages.length} images</span>}
+                      </div>
+                      <h3 className="text-base font-semibold text-zinc-900">{item.caption || "Untitled activity post"}</h3>
+                      {item.captionHindi && <p className="mt-1 text-sm text-zinc-500">{item.captionHindi}</p>}
+                      {item.detailsEn && <p className="mt-2 line-clamp-2 text-sm text-zinc-600">{item.detailsEn}</p>}
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const imageUrls = [...itemImages, "", "", "", ""].slice(0, 4);
+                            setEditingGalleryId(item.id);
+                            setGalleryForm({
+                              imageUrls,
+                              caption: item.caption || "",
+                              captionHindi: item.captionHindi || "",
+                              detailsEn: item.detailsEn || "",
+                              detailsHi: item.detailsHi || "",
+                              category: item.category,
+                            });
+                          }}
+                          className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeGallery(item.id)}
+                          className="rounded-md border border-red-300 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {gallery.length === 0 && (
               <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-500 md:col-span-2">
                 No activity posts found. Add the first activity image above.

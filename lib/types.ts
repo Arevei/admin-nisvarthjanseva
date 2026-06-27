@@ -163,6 +163,7 @@ export interface EnquiryDoc {
 export interface GalleryDoc {
   id: number;
   imageUrl: string;
+  imageUrls?: string[] | null;
   caption: string | null;
   captionHindi: string | null;
   detailsEn: string | null;

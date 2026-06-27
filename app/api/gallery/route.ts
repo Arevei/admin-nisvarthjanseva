@@ -3,10 +3,23 @@ import { getDb, nextSequence } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import type { GalleryDoc } from "@/lib/types";
 
+function normalizeImageUrls(body: Partial<GalleryDoc>) {
+  return Array.from(
+    new Set(
+      [...(body.imageUrls ?? []), body.imageUrl]
+        .map((imageUrl) => imageUrl?.trim())
+        .filter((imageUrl): imageUrl is string => Boolean(imageUrl)),
+    ),
+  ).slice(0, 4);
+}
+
 function toResponse(item: GalleryDoc) {
+  const imageUrls = normalizeImageUrls(item);
+
   return {
     id: item.id,
-    imageUrl: item.imageUrl,
+    imageUrl: imageUrls[0] ?? item.imageUrl,
+    imageUrls,
     caption: item.caption,
     captionHindi: item.captionHindi,
     detailsEn: item.detailsEn,
@@ -29,13 +42,15 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await req.json()) as Partial<GalleryDoc>;
-  if (!body.imageUrl || !body.category) {
-    return NextResponse.json({ error: "imageUrl and category are required" }, { status: 400 });
+  const imageUrls = normalizeImageUrls(body);
+  if (imageUrls.length === 0 || !body.category) {
+    return NextResponse.json({ error: "At least one image and category are required" }, { status: 400 });
   }
 
   const item: GalleryDoc = {
     id: await nextSequence("gallery"),
-    imageUrl: body.imageUrl,
+    imageUrl: imageUrls[0],
+    imageUrls,
     caption: body.caption || null,
     captionHindi: body.captionHindi || null,
     detailsEn: body.detailsEn || null,

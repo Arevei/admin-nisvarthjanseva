@@ -168,6 +168,13 @@ export default async function DashboardPage() {
   const initialGallery = galleryRows.map((item) => ({
     id: item.id,
     imageUrl: item.imageUrl,
+    imageUrls: Array.from(
+      new Set(
+        [...(item.imageUrls ?? []), item.imageUrl]
+          .map((imageUrl) => imageUrl?.trim())
+          .filter((imageUrl): imageUrl is string => Boolean(imageUrl)),
+      ),
+    ).slice(0, 4),
     caption: item.caption,
     captionHindi: item.captionHindi,
     detailsEn: item.detailsEn,
