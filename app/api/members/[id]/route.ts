@@ -6,7 +6,7 @@ import type { MemberDoc } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
 type UpdateBody = {
-  action?: "approve" | "activate" | "reject" | "suspend";
+  action?: "approve" | "activate" | "reject" | "suspend" | "send_documents";
 };
 
 function toResponse(member: MemberDoc) {
@@ -29,11 +29,18 @@ function toResponse(member: MemberDoc) {
   };
 }
 
+function getMailMessageId(result: unknown) {
+  if (!result || typeof result !== "object" || !("messageId" in result)) return null;
+  const messageId = (result as { messageId?: unknown }).messageId;
+  return typeof messageId === "string" ? messageId : null;
+}
+
 function statusFromAction(action: UpdateBody["action"]) {
   switch (action) {
     case "approve":
       return "payment_pending";
     case "activate":
+    case "send_documents":
       return "active";
     case "reject":
       return "rejected";
@@ -73,7 +80,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   }
 
   const setPayload: Partial<MemberDoc> = { status: newStatus };
-  if (body.action === "activate" && !existing.certificateNumber) {
+  if ((body.action === "activate" || body.action === "send_documents") && !existing.certificateNumber) {
     setPayload.certificateNumber = generateCertificateNumber();
   }
 
@@ -101,17 +108,45 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     }
   }
 
-  if (body.action === "activate") {
+  if (body.action === "activate" || body.action === "send_documents") {
     try {
       const requestUrl = req.headers.get("origin") || "http://localhost:3000";
-      await sendMembershipIdCardCertificateEmail(updated, requestUrl);
+      const mailResult = await sendMembershipIdCardCertificateEmail(updated, requestUrl);
+      const messageId = getMailMessageId(mailResult);
+      await members.updateOne(
+        { id },
+        {
+          $set: {
+            membershipDocumentsEmailSentAt: new Date(),
+            membershipDocumentsEmailMessageId: messageId,
+            membershipDocumentsEmailError: null,
+          },
+        },
+      );
+
+      return NextResponse.json({ member: toResponse(updated), emailSent: true, messageId });
     } catch (error) {
+      const actionLabel = body.action === "send_documents" ? "Documents were prepared" : "Member activated";
+      const errorMessage = error instanceof Error ? error.message : "Unknown email error";
+      await members.updateOne(
+        { id },
+        {
+          $set: {
+            membershipDocumentsEmailError: errorMessage,
+            membershipDocumentsEmailFailedAt: new Date(),
+          },
+        },
+      );
+      console.error("[Membership documents email] Failed", {
+        memberId: updated.id,
+        membershipId: updated.membershipId,
+        email: updated.email,
+        error: errorMessage,
+      });
+
       return NextResponse.json(
         {
-          error:
-            error instanceof Error
-              ? `Member activated but email failed: ${error.message}`
-              : "Member activated but email failed",
+          error: `${actionLabel} but email failed: ${errorMessage}`,
           member: toResponse(updated),
         },
         { status: 207 },

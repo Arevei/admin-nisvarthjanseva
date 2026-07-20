@@ -284,6 +284,7 @@ export function DashboardPanel({
   const campaignTitleInputRef = useRef<HTMLInputElement | null>(null);
   const [tab, setTab] = useState<Tab>("home");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
   const [members, setMembers] = useState<MemberItem[]>(initialMembers);
   const [news, setNews] = useState<NewsItem[]>(initialNews);
@@ -595,10 +596,11 @@ export function DashboardPanel({
 
   const memberAction = async (
     memberId: number,
-    action: "approve" | "activate" | "reject" | "suspend",
+    action: "approve" | "activate" | "reject" | "suspend" | "send_documents",
   ) => {
     setBusy(true);
     setError("");
+    setSuccess("");
     try {
       const response = await fetch(`/api/members/${memberId}`, {
         method: "PATCH",
@@ -609,6 +611,8 @@ export function DashboardPanel({
 
       const payload = (await response.json()) as {
         error?: string;
+        emailSent?: boolean;
+        messageId?: string | null;
         member?: MemberItem;
       };
 
@@ -618,6 +622,8 @@ export function DashboardPanel({
 
       if (response.status === 207 && payload.error) {
         setError(payload.error);
+      } else if ((action === "activate" || action === "send_documents") && payload.emailSent) {
+        setSuccess("Membership ID card and certificate email sent successfully.");
       }
 
       await refreshAll();
@@ -1296,6 +1302,7 @@ export function DashboardPanel({
         </div>
 
       {error && <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {success && <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{success}</p>}
 
       {tab === "home" && (
         <div className="space-y-6">
@@ -1482,14 +1489,24 @@ export function DashboardPanel({
                       </button>
                     )}
                     {member.status === "active" && (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => memberAction(member.id, "suspend")}
-                        className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200 disabled:opacity-60"
-                      >
-                        Suspend
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => memberAction(member.id, "send_documents")}
+                          className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                        >
+                          Send Documents
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => memberAction(member.id, "suspend")}
+                          className="rounded-md border border-zinc-300 bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200 disabled:opacity-60"
+                        >
+                          Suspend
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>

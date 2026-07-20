@@ -145,7 +145,7 @@ export async function sendMembershipApprovalPaymentEmail(member: MemberDoc, requ
       <p style="color: #71717a;">Thank you.</p>
     `;
 
-  await transporter.sendMail({
+  return transporter.sendMail({
     from: `Nisvarthjan Seva Foundation <${fromAddress}>`,
     to: member.email,
     replyTo: ADMIN_EMAIL,
@@ -331,7 +331,7 @@ export async function sendMembershipIdCardCertificateEmail(member: MemberDoc, re
       <p style="color: #71717a;">Welcome to the Nisvarthjan Seva Foundation family!</p>
     `;
 
-  await transporter.sendMail({
+  return transporter.sendMail({
     from: `Nisvarthjan Seva Foundation <${fromAddress}>`,
     to: member.email,
     replyTo: ADMIN_EMAIL,
